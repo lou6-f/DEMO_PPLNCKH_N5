@@ -79,8 +79,17 @@ def _device() -> str:
 DEVICE = _device()
 print(f'[Backend] Running on device: {DEVICE}')
 
-# Concurrency control: limit simultaneous PyTorch PGD jobs to avoid CPU/memory overload
-JOB_SEMAPHORE = threading.Semaphore(value=1 if DEVICE == 'cpu' else 2)
+# Pre-warm FaceNet surrogate model in background at startup so first user has zero wait time
+def _warmup_model():
+    try:
+        from perturbation import get_surrogate
+        print('[Warmup] Preloading FaceNet surrogate weights into memory...')
+        get_surrogate(DEVICE)
+        print('[Warmup] FaceNet surrogate is cached and ready!')
+    except Exception as e:
+        print(f'[Warmup] Preload note: {e}')
+
+threading.Thread(target=_warmup_model, daemon=True).start()
 
 
 # ── Background worker ────────────────────────────────────────────────────────
@@ -92,6 +101,9 @@ def _run_job(job_id: str, img_bytes: bytes, params: dict):
                 JOBS[job_id]['events'].append(data)
 
     try:
+        # Immediately report 5% so progress bar starts moving instantly
+        cb({'stage': 'init', 'pct': 5.0, 'detail': 'Khởi tạo ảnh và căn chỉnh khuôn mặt...'})
+
         pil = Image.open(BytesIO(img_bytes)).convert('RGB')
 
         # Save original
@@ -137,18 +149,6 @@ def _run_job(job_id: str, img_bytes: bytes, params: dict):
         with _LOCK:
             if job_id in JOBS:
                 JOBS[job_id].update(status='error', error=str(exc))
-
-
-def _queue_and_run_job(job_id: str, img_bytes: bytes, params: dict):
-    with _LOCK:
-        if job_id in JOBS:
-            JOBS[job_id]['events'].append({
-                'stage': 'queue',
-                'pct': 1.0,
-                'detail': 'Đang trong hàng đợi xử lý của hệ thống...'
-            })
-    with JOB_SEMAPHORE:
-        _run_job(job_id, img_bytes, params)
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -210,9 +210,13 @@ def api_protect():
     try:
         img_bytes = request.files['image'].read()
         f = request.form
+        iter_req = int(f.get('iterations', 20))
+        # Cap iterations to 30 max on CPU to guarantee 10-15s execution time
+        safe_iters = max(10, min(iter_req, 30))
+
         params = {
             'epsilon'   : int(f.get('epsilon', 8)),
-            'iterations': int(f.get('iterations', 50)),
+            'iterations': safe_iters,
             'qualities' : json.loads(f.get('qualities', '[50,70,90]')),
             'mode'      : f.get('mode', 'jpeg_aware'),
         }
@@ -231,7 +235,7 @@ def api_protect():
             'error'    : None,
         }
 
-    threading.Thread(target=_queue_and_run_job, args=(job_id, img_bytes, params),
+    threading.Thread(target=_run_job, args=(job_id, img_bytes, params),
                      daemon=True).start()
     return jsonify({'job_id': job_id})
 
