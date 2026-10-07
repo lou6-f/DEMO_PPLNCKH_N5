@@ -1,0 +1,670 @@
+HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG
+KHOA CÔNG NGHỆ THÔNG TIN 1
+BÁO CÁO
+PHƯƠNG PHÁP LUẬN NGHIÊN CỨU KHOA HỌC
+Đề tài: Xây dựng phương pháp bảo vệ ảnh nhằm hạn chế bị thu thập và sử dụng trái phép để huấn luyện mô hình AI
+Giảng viên hướng dẫn: Nguyễn Thị Kim Chi
+Nhóm lớp: 16
+Nhóm BTL: 5
+        HÀ NỘI, 09/2026
+Phân chia nhiệm vụ và đánh giá:
+MỤC LỤC
+PHẦN MỞ ĐẦU
+1. Lý do chọn đề tài
+Trong những năm gần đây, Trí tuệ Nhân tạo sinh (Generative AI), đặc biệt là các mô hình sinh ảnh từ văn bản (Text-to-Image Generation Models), đã có những bước phát triển nhanh chóng. Các mô hình dựa trên kiến trúc khuếch tán (Diffusion Models) có khả năng tạo ra hình ảnh có chất lượng cao từ các mô tả bằng ngôn ngữ tự nhiên. Bên cạnh đó, các kỹ thuật cá nhân hóa mô hình như DreamBooth cho phép một mô hình sinh ảnh học và tái tạo đặc điểm của một chủ thể cụ thể chỉ từ một số lượng nhỏ hình ảnh tham chiếu.
+Khả năng cá nhân hóa này mang lại nhiều ứng dụng hữu ích, tuy nhiên cũng làm phát sinh những vấn đề liên quan đến quyền riêng tư và quyền sử dụng dữ liệu hình ảnh. Trong thực tế, hình ảnh chân dung cá nhân hoặc các tác phẩm được công khai trên Internet có thể bị thu thập mà không có sự đồng ý của chủ sở hữu, sau đó được sử dụng làm dữ liệu để fine-tune hoặc cá nhân hóa mô hình sinh ảnh. Khi mô hình đã học được đặc trưng của chủ thể từ các hình ảnh thu thập được, nó có thể tạo ra những hình ảnh mới mô phỏng chủ thể trong nhiều bối cảnh khác nhau. Điều này đặt ra nhu cầu nghiên cứu các biện pháp giúp người dùng chủ động bảo vệ dữ liệu hình ảnh trước khi công khai.
+Một trong những hướng tiếp cận được quan tâm là sử dụng nhiễu đối kháng bảo vệ (Protective Perturbation). Theo hướng tiếp cận này, một lượng nhiễu được chủ động thêm vào ảnh trước khi ảnh được công khai. Lớp nhiễu được thiết kế sao cho ảnh sau khi bảo vệ vẫn duy trì chất lượng thị giác phù hợp đối với người quan sát, nhưng có khả năng gây ảnh hưởng đến quá trình học của mô hình nếu ảnh bị thu thập và sử dụng làm dữ liệu huấn luyện. Các nghiên cứu như Anti-DreamBooth và MetaCloak đã cho thấy tiềm năng của Protective Perturbation trong việc hạn chế khả năng cá nhân hóa trái phép mô hình sinh ảnh.
+Tuy nhiên, một trong những vấn đề quan trọng đối với khả năng ứng dụng thực tế của Protective Perturbation là độ bền vững trước các phép biến đổi dữ liệu. Ảnh sau khi được công khai trên Internet không phải lúc nào cũng được giữ nguyên như dữ liệu ban đầu. Trong quá trình lưu trữ, truyền tải, tải lên hoặc tải xuống từ các nền tảng trực tuyến, ảnh có thể bị nén hoặc mã hóa lại nhằm giảm dung lượng dữ liệu.
+JPEG là một trong những phương pháp nén ảnh mất dữ liệu được sử dụng phổ biến. Trong quá trình nén JPEG, một phần thông tin của ảnh bị loại bỏ nhằm giảm kích thước tệp. Đối với Protective Perturbation, quá trình này có thể làm suy giảm hoặc loại bỏ một phần tín hiệu nhiễu được thêm vào ảnh. Do đó, một lớp bảo vệ hoạt động hiệu quả trên ảnh ban đầu chưa chắc duy trì được hiệu quả tương đương sau khi ảnh trải qua nén JPEG.
+Vấn đề này tạo ra khoảng cách giữa hiệu quả của Protective Perturbation trong điều kiện thực nghiệm lý tưởng và khả năng ứng dụng trong môi trường thực tế. Nếu lớp bảo vệ dễ dàng bị suy giảm chỉ sau một phép nén ảnh phổ biến, khả năng bảo vệ dữ liệu khi ảnh được chia sẻ trên Internet sẽ bị hạn chế. Vì vậy, bên cạnh việc tạo ra perturbation có khả năng gây ảnh hưởng đến quá trình học của mô hình, cần nghiên cứu khả năng duy trì tác dụng của perturbation sau khi dữ liệu trải qua nén JPEG.
+Một hướng tiếp cận phù hợp là đưa ảnh hưởng của JPEG vào ngay trong quá trình tạo Protective Perturbation. Thay vì tối ưu perturbation trên ảnh ban đầu rồi mới kiểm tra khả năng chống chịu sau nén, phép biến đổi JPEG có thể được mô phỏng trong quá trình tối ưu. Qua đó, thuật toán có thể hướng tới những perturbation có khả năng duy trì hiệu quả tốt hơn sau khi ảnh bị nén.
+Xuất phát từ những vấn đề trên, đề tài “Xây dựng phương pháp bảo vệ ảnh nhằm hạn chế bị thu thập và sử dụng trái phép để huấn luyện mô hình AI” được thực hiện nhằm nghiên cứu ảnh hưởng của nén JPEG đối với Protective Perturbation và xây dựng phương pháp tạo nhiễu có khả năng thích ứng tốt hơn với quá trình nén. Đề tài đồng thời đánh giá sự đánh đổi giữa hiệu quả bảo vệ, độ bền vững trước JPEG và chất lượng thị giác của ảnh, hướng tới nâng cao khả năng ứng dụng của Protective Perturbation trong điều kiện xử lý dữ liệu gần với thực tế.
+2. Mục tiêu nghiên cứu
+Mục tiêu tổng quát
+Đề tài hướng tới nghiên cứu và xây dựng phương pháp bảo vệ hình ảnh bằng nhiễu đối kháng bảo vệ (Protective Perturbation) có khả năng duy trì hiệu quả sau quá trình nén JPEG, qua đó góp phần hạn chế nguy cơ hình ảnh công khai bị thu thập và sử dụng trái phép để cá nhân hóa mô hình sinh ảnh.
+Mục tiêu cụ thể
+Nghiên cứu cơ chế hoạt động của Protective Perturbation và ảnh hưởng của quá trình nén JPEG đến lớp nhiễu bảo vệ được thêm vào hình ảnh.
+Xây dựng quy trình thực nghiệm nhằm đánh giá mức độ suy giảm của Protective Perturbation khi ảnh trải qua các mức nén JPEG khác nhau.
+Nghiên cứu phương pháp đưa phép nén JPEG vào quá trình tối ưu nhiễu, hướng tới tạo Protective Perturbation có khả năng duy trì hiệu quả tốt hơn sau nén.
+Đánh giá sự đánh đổi giữa hiệu quả bảo vệ, độ bền vững trước nén JPEG và chất lượng thị giác của hình ảnh thông qua các chỉ số định lượng và kết quả thực nghiệm.
+So sánh phương pháp được xây dựng với phương pháp Protective Perturbation cơ sở để đánh giá mức độ cải thiện trong điều kiện ảnh chịu tác động của nén JPEG.
+3. Đối tượng và phạm vi nghiên cứu
+Đối tượng nghiên cứu
+Đối tượng nghiên cứu của đề tài bao gồm các phương pháp tạo nhiễu đối kháng bảo vệ dữ liệu hình ảnh (Protective Perturbation), cơ chế nén ảnh JPEG và ảnh hưởng của nén mất dữ liệu đến nhiễu đối kháng, phương pháp mô phỏng JPEG trong quá trình tối ưu hóa, cùng kỹ thuật cá nhân hóa mô hình sinh ảnh từ văn bản.
+Phạm vi nghiên cứu
+Đề tài tập trung vào bài toán bảo vệ hình ảnh chân dung cá nhân trước nguy cơ bị thu thập và sử dụng trái phép để cá nhân hóa mô hình sinh ảnh.
+Trong phạm vi thực nghiệm, đề tài tập trung khảo sát một mô hình sinh ảnh khuếch tán mã nguồn mở và kỹ thuật cá nhân hóa DreamBooth. JPEG compression được lựa chọn là phép biến đổi chính để đánh giá tính bền vững của Protective Perturbation.
+Các mức chất lượng JPEG khác nhau được sử dụng nhằm mô phỏng tình huống ảnh bị nén hoặc xử lý lại trong quá trình lưu trữ, chia sẻ và thu thập trên môi trường Internet.
+Đề tài không tập trung giải quyết đồng thời các kỹ thuật loại bỏ nhiễu nâng cao dựa trên mô hình khuếch tán như DiffPure hoặc GrIDPure, cũng như bài toán chuyển giao giữa nhiều kiến trúc mô hình sinh ảnh khác nhau. Các nội dung này được xem là hướng mở rộng cho các nghiên cứu tiếp theo.
+4. Phương pháp nghiên cứu
+Đề tài kết hợp phương pháp nghiên cứu lý thuyết và phương pháp thực nghiệm.
+Nghiên cứu lý thuyết: Khảo sát các nghiên cứu liên quan đến mô hình sinh ảnh khuếch tán, kỹ thuật cá nhân hóa DreamBooth, Protective Perturbation và cơ chế nén ảnh JPEG. Trên cơ sở đó, phân tích ảnh hưởng của quá trình nén mất dữ liệu đến lớp nhiễu bảo vệ và nghiên cứu khả năng đưa phép biến đổi JPEG vào quá trình tối ưu Protective Perturbation.
+Nghiên cứu thực nghiệm: Xây dựng chương trình thử nghiệm bằng Python và các thư viện học máy phù hợp. Protective Perturbation được tạo trên tập ảnh thử nghiệm, sau đó ảnh bảo vệ được nén với nhiều mức chất lượng JPEG để đánh giá sự thay đổi về hiệu quả bảo vệ.
+Trên cơ sở kết quả thu được, đề tài xây dựng phương pháp tạo nhiễu có xét đến phép nén JPEG trong quá trình tối ưu. Phương pháp đề xuất được so sánh với Protective Perturbation cơ sở trong cùng điều kiện thực nghiệm.
+Hiệu quả của phương pháp được đánh giá trên hai phương diện chính: khả năng duy trì tác dụng bảo vệ sau nén JPEG và chất lượng thị giác của ảnh sau khi thêm nhiễu. Các chỉ số đánh giá chất lượng ảnh như PSNR, SSIM và LPIPS được sử dụng kết hợp với kết quả đánh giá khả năng cá nhân hóa của mô hình.
+5. Ý nghĩa khoa học và thực tiễn của đề tài
+Ý nghĩa khoa học
+Đề tài góp phần làm rõ ảnh hưởng của nén JPEG đối với độ bền vững của Protective Perturbation trong bài toán bảo vệ dữ liệu hình ảnh trước mô hình sinh ảnh. Thông qua việc khảo sát các mức nén khác nhau và đưa phép nén JPEG vào quá trình tạo nhiễu, đề tài phân tích mối quan hệ giữa hiệu quả bảo vệ, độ bền vững của perturbation và chất lượng thị giác của ảnh.
+Kết quả nghiên cứu có thể cung cấp thêm cơ sở thực nghiệm cho việc phát triển các phương pháp Protective Perturbation thích ứng với các phép biến đổi dữ liệu thường gặp trong môi trường thực tế.
+Ý nghĩa thực tiễn
+Trong thực tế, hình ảnh được chia sẻ trên Internet có thể trải qua các quá trình nén, chuyển đổi định dạng hoặc xử lý lại trước khi được lưu trữ và thu thập. Nếu lớp Protective Perturbation dễ bị suy giảm sau những thao tác này, khả năng ứng dụng của phương pháp bảo vệ sẽ bị hạn chế.
+Do đó, việc nghiên cứu Protective Perturbation có khả năng duy trì hiệu quả sau nén JPEG có ý nghĩa đối với việc phát triển các công cụ bảo vệ hình ảnh trước khi người dùng công khai dữ liệu trên Internet, góp phần hạn chế nguy cơ hình ảnh bị sử dụng trái phép để cá nhân hóa mô hình sinh ảnh.
+6. Cấu trúc của đề tài
+Ngoài Phần mở đầu, Kết luận và Danh mục tài liệu tham khảo, nội dung chính của đề tài được chia thành ba chương:
+Chương 1: Cơ sở lý thuyết và tổng quan tình hình nghiên cứu. Trình bày các khái niệm liên quan đến mô hình sinh ảnh từ văn bản, mô hình khuếch tán, DreamBooth, nhiễu đối kháng, Protective Perturbation, robustness, nén JPEG và Differentiable JPEG. Đồng thời tổng hợp các nghiên cứu trong và ngoài nước để xác định khoảng trống và hướng nghiên cứu của đề tài.
+Chương 2: Phương pháp nghiên cứu đề xuất. Trình bày mô hình bài toán, quy trình đánh giá ảnh hưởng của JPEG đối với Protective Perturbation và phương pháp tạo Protective Perturbation có xét đến nén JPEG trong quá trình tối ưu.
+Chương 3: Thực nghiệm và đánh giá kết quả. Trình bày môi trường thực nghiệm, dữ liệu, các mức nén JPEG, tiêu chí đánh giá; so sánh Protective Perturbation cơ sở với phương pháp đề xuất; phân tích độ bền vững trước JPEG và sự đánh đổi giữa hiệu quả bảo vệ với chất lượng thị giác.
+CHƯƠNG 1: CƠ SỞ LÝ THUYẾT VÀ TỔNG QUAN TÌNH HÌNH NGHIÊN CỨU
+1.1. Cơ sở lý thuyết
+1.1.1. Mô hình sinh ảnh từ văn bản
+Mô hình sinh ảnh từ văn bản (Text-to-Image Generation Model) là một dạng mô hình trí tuệ nhân tạo có khả năng tạo ra hình ảnh dựa trên nội dung mô tả bằng ngôn ngữ tự nhiên. Người dùng cung cấp một câu lệnh văn bản, hay còn gọi là prompt, mô tả đối tượng, bối cảnh hoặc phong cách mong muốn và mô hình sẽ sinh ra hình ảnh tương ứng.
+Các hệ thống sinh ảnh hiện đại thường sử dụng mô hình khuếch tán làm nền tảng. Khác với các phương pháp sinh ảnh trước đây, mô hình khuếch tán học cách tạo dữ liệu bằng cách khôi phục dần một tín hiệu ảnh từ trạng thái chứa nhiều nhiễu. Nhờ khả năng tạo ảnh có chất lượng và độ đa dạng cao, mô hình khuếch tán đã trở thành nền tảng của nhiều hệ thống sinh ảnh và cá nhân hoá ảnh hiện nay.
+Trong phạm vi đề tài, mô hình sinh ảnh từ văn bản vừa là đối tượng cần được ngăn chặn khi dữ liệu bị sử dụng trái phép, vừa có thể được sử dụng trong các kỹ thuật purification nhằm loại bỏ nhiễu đối kháng.
+1.1.2. Mô hình khuếch tán
+Mô hình khuếch tán (Diffusion Model) là một loại mô hình sinh học cách tạo dữ liệu thông qua quá trình thêm nhiễu và khử nhiễu. Trong giai đoạn huấn luyện, ảnh được thêm nhiễu dần qua nhiều bước. Mô hình học cách thực hiện quá trình ngược lại, tức dự đoán và loại bỏ nhiễu để khôi phục cấu trúc của dữ liệu.
+Sau khi được huấn luyện, mô hình có thể bắt đầu từ một tín hiệu nhiễu và từng bước khử nhiễu để tạo thành hình ảnh mới. Khi kết hợp với thông tin văn bản, quá trình khử nhiễu có thể được điều khiển để hình ảnh đầu ra phù hợp với nội dung của prompt.
+Ngoài mục đích sinh ảnh, đặc tính khôi phục dữ liệu của diffusion model còn được khai thác trong adversarial purification. Trong trường hợp này, mô hình khuếch tán được sử dụng để loại bỏ các thành phần nhiễu đối kháng và tái tạo lại ảnh gần với dữ liệu sạch.
+1.1.3. Cá nhân hoá mô hình sinh ảnh và DreamBooth
+Cá nhân hoá mô hình sinh ảnh (Text-to-Image Personalization) là quá trình điều chỉnh một mô hình sinh ảnh đã được huấn luyện trước để mô hình có khả năng học và tái tạo một chủ thể cụ thể dựa trên một số lượng nhỏ ảnh tham chiếu.
+DreamBooth là một phương pháp tiêu biểu cho bài toán cá nhân hoá mô hình sinh ảnh. Phương pháp này cho phép fine-tune một mô hình text-to-image đã được huấn luyện trước bằng một tập nhỏ hình ảnh của một chủ thể. Sau quá trình fine-tuning, mô hình có thể tạo ra những hình ảnh mới của chủ thể đó trong nhiều bối cảnh, tư thế, góc nhìn và điều kiện khác nhau mà không cần xuất hiện trong tập ảnh ban đầu.
+Khả năng học một chủ thể từ số lượng nhỏ ảnh đem lại nhiều ứng dụng hữu ích nhưng cũng làm xuất hiện nguy cơ lạm dụng. Một cá nhân có thể bị thu thập ảnh công khai mà không có sự đồng ý, sau đó những ảnh này được sử dụng để xây dựng mô hình cá nhân hoá nhằm tạo ra các nội dung giả mạo hoặc không mong muốn. Đây là một trong những mô hình đe doạ chính mà các phương pháp như Anti-DreamBooth hướng tới.
+1.1.4. Mẫu đối kháng và nhiễu đối kháng
+Mẫu đối kháng (Adversarial Example) là dữ liệu đã được cố ý thay đổi nhằm làm cho một mô hình học máy hoạt động sai hoặc đưa ra kết quả khác với mong muốn. Phần thay đổi được thêm vào dữ liệu được gọi là nhiễu đối kháng (Adversarial Perturbation).
+Một đặc điểm quan trọng của adversarial perturbation là mức thay đổi có thể rất nhỏ đối với người quan sát nhưng lại tạo ra tác động đáng kể đối với mô hình học máy. Điều này xuất phát từ sự khác biệt giữa cách con người và mô hình học sâu biểu diễn cũng như xử lý thông tin trong dữ liệu.
+Trong các nghiên cứu adversarial learning truyền thống, nhiễu đối kháng thường được sử dụng với mục đích tấn công mô hình. Tuy nhiên, trong đề tài này, đặc tính của adversarial perturbation được khai thác theo hướng ngược lại, tức sử dụng nhiễu như một cơ chế chủ động để bảo vệ dữ liệu.
+1.1.5. Protective Perturbation
+Protective Perturbation là một dạng nhiễu đối kháng được chủ động thêm vào dữ liệu trước khi dữ liệu được công khai nhằm hạn chế khả năng dữ liệu đó bị sử dụng trái phép để huấn luyện hoặc cá nhân hoá mô hình AI.
+Khác với adversarial attack truyền thống, protective perturbation không nhất thiết nhằm làm cho mô hình đưa ra dự đoán sai ngay khi xử lý ảnh. Thay vào đó, mục tiêu của nó là làm gián đoạn quá trình học. Khi một bên thứ ba thu thập các ảnh đã được bảo vệ và sử dụng chúng để fine-tune mô hình, perturbation khiến mô hình học các đặc trưng không chính xác hoặc làm suy giảm khả năng tái tạo chủ thể.
+Một yêu cầu quan trọng của protective perturbation là ảnh sau khi được bảo vệ vẫn phải duy trì chất lượng thị giác phù hợp để người dùng có thể công khai và sử dụng bình thường. Đồng thời, perturbation phải đủ mạnh để tiếp tục gây ảnh hưởng đến quá trình học của mô hình.
+Anti-DreamBooth và MetaCloak là những ví dụ tiêu biểu cho hướng tiếp cận này trong bài toán ngăn chặn việc cá nhân hoá trái phép mô hình sinh ảnh.
+1.1.6. Adversarial Purification
+Adversarial Purification là nhóm các kỹ thuật được sử dụng nhằm loại bỏ hoặc làm suy giảm adversarial perturbation khỏi dữ liệu trước khi dữ liệu được đưa vào mô hình.
+Mục tiêu của purification là khôi phục ảnh về trạng thái gần với ảnh sạch ban đầu trong khi loại bỏ những thành phần nhiễu có khả năng làm thay đổi hành vi của mô hình. Các phương pháp purification có thể sử dụng các bộ lọc ảnh truyền thống, mô hình học sâu hoặc mô hình sinh.
+Các diffusion model đặc biệt phù hợp với bài toán này nhờ khả năng khử nhiễu và tái tạo dữ liệu. DiffPure là một trong những phương pháp tiêu biểu sử dụng diffusion model cho adversarial purification. Những phương pháp sau đó như GrIDPure tiếp tục phát triển ý tưởng này nhằm xử lý ảnh có độ phân giải cao và đối phó với protective perturbation.
+Trong bối cảnh đề tài, purification có thể được xem là một biện pháp mà bên thu thập dữ liệu sử dụng để cố gắng loại bỏ lớp bảo vệ khỏi ảnh trước khi đưa ảnh vào quá trình huấn luyện.
+1.1.7. Anti-Purification
+Anti-Purification là hướng nghiên cứu nhằm tạo ra adversarial perturbation có khả năng duy trì tác dụng ngay cả khi dữ liệu đã trải qua một quá trình purification.
+Sự xuất hiện của anti-purification bắt nguồn từ hạn chế của nhiều phương pháp protective perturbation trước đây. Mặc dù perturbation có thể hoạt động tốt trên ảnh chưa qua xử lý, các kỹ thuật purification mạnh có thể loại bỏ phần lớn tín hiệu đối kháng và làm cho ảnh trở nên có thể học được trở lại.
+Do đó, thay vì chỉ tối ưu nhiễu để tác động đến mô hình, anti-purification còn xem xét trực tiếp quá trình khử nhiễu mà bên tấn công có thể thực hiện. Protective perturbation được xem là bền vững hơn nếu vẫn duy trì được tác dụng bảo vệ sau các bước purification.
+AntiPure là một trong những nghiên cứu tiêu biểu theo hướng này, tập trung vào việc tạo protective perturbation có khả năng chống lại diffusion-based purification.
+1.1.8. Robustness của Protective Perturbation
+Robustness của protective perturbation thể hiện khả năng lớp nhiễu vẫn duy trì hiệu quả bảo vệ sau khi ảnh đã trải qua các phép biến đổi hoặc tiền xử lý.
+Trong môi trường thực tế, một ảnh được công khai thường không được giữ nguyên hoàn toàn. Các nền tảng hoặc người thu thập dữ liệu có thể thực hiện nhiều thao tác như nén ảnh, thay đổi kích thước, làm mờ, cắt ảnh, khử nhiễu hoặc purification.
+Nếu một perturbation mất tác dụng ngay sau một phép biến đổi đơn giản, khả năng bảo vệ của phương pháp trong điều kiện thực tế sẽ bị hạn chế. Vì vậy, robustness là một trong những tiêu chí quan trọng khi đánh giá protective perturbation.
+MetaCloak là một ví dụ về phương pháp hướng tới tăng tính bền vững của perturbation trước các phép biến đổi dữ liệu. Những nghiên cứu tiếp theo tiếp tục mở rộng robustness sang các mối đe doạ như diffusion-based purification và JPEG compression.
+1.1.9. Transferability
+Transferability là khả năng một adversarial perturbation được tạo ra trên một mô hình vẫn duy trì hiệu quả khi được áp dụng với một mô hình khác .
+Đặc tính này đặc biệt quan trọng đối với protective perturbation. Trong thực tế, người sở hữu ảnh không thể biết chính xác bên thu thập dữ liệu sẽ sử dụng kiến trúc mô hình, phiên bản mô hình hoặc phương pháp fine-tuning nào. Nếu một perturbation chỉ hoạt động đối với đúng mô hình được sử dụng trong quá trình tạo nhiễu thì giá trị bảo vệ thực tế sẽ bị hạn chế.
+Do đó, các phương pháp protective perturbation thường hướng tới khả năng tạo nhiễu có tính tổng quát cao và có thể chuyển đổi giữa nhiều mô hình. MetaCloak, chẳng hạn, sử dụng nhiều surrogate diffusion model trong quá trình tối ưu nhằm cải thiện khả năng transferability và giảm sự phụ thuộc vào một mô hình cụ thể . 
+1.1.10. Surrogate Model, White-box và Black-box
+Surrogate Model là mô hình thay thế được sử dụng trong quá trình tạo adversarial perturbation khi không thể trực tiếp truy cập mô hình thực tế mà bên tấn công sẽ sử dụng.
+Trong điều kiện white-box, người tạo perturbation có quyền truy cập vào thông tin bên trong của mô hình, chẳng hạn như kiến trúc, tham số và quá trình tính toán. Điều này cho phép tối ưu perturbation trực tiếp dựa trên mô hình mục tiêu.
+Ngược lại, trong điều kiện black-box, người bảo vệ không biết hoặc không thể truy cập đầy đủ thông tin về mô hình của bên tấn công. Khi đó, perturbation thường được tối ưu trên một hoặc nhiều surrogate model với kỳ vọng rằng nhờ tính transferability, perturbation vẫn có hiệu quả trên những mô hình chưa biết .
+Điều kiện black-box phản ánh sát hơn tình huống bảo vệ ảnh trong thực tế, bởi người sở hữu dữ liệu gần như không thể xác định trước bên thu thập sẽ sử dụng mô hình nào .
+1.1.11. Nén JPEG và Differentiable JPEG
+JPEG là một trong những phương pháp nén ảnh mất dữ liệu phổ biến nhất hiện nay. Quá trình nén giúp giảm đáng kể kích thước tệp bằng cách loại bỏ một phần thông tin ảnh được xem là ít quan trọng đối với khả năng cảm nhận của con người.
+Đối với protective perturbation, JPEG compression là một vấn đề đáng chú ý vì quá trình nén có thể làm suy giảm hoặc loại bỏ một phần tín hiệu nhiễu đã được thêm vào ảnh. Một phương pháp protective perturbation hoạt động hiệu quả trên ảnh chưa nén có thể mất đáng kể hiệu quả sau khi ảnh được chuyển đổi hoặc nén lại.
+Differentiable JPEG là một cách mô phỏng quá trình JPEG theo hướng cho phép quá trình tối ưu của mạng nơ-ron đi xuyên qua bước nén . Nhờ đó, JPEG compression có thể được đưa trực tiếp vào quá trình tạo perturbation thay vì chỉ được sử dụng như một phép kiểm tra sau khi nhiễu đã được tạo.
+Hướng tiếp cận này cho phép thuật toán chủ động tìm kiếm những perturbation có khả năng tồn tại tốt hơn sau quá trình nén JPEG .
+1.1.12. Imperceptibility và Stealthiness
+Imperceptibility thể hiện mức độ khó nhận biết của adversarial perturbation đối với người quan sát. Trong một số nghiên cứu, đặc tính này cũng được đề cập dưới khái niệm stealthiness .
+Đối với protective perturbation, đây là một yêu cầu đặc biệt quan trọng vì mục tiêu cuối cùng vẫn là bảo vệ một bức ảnh mà người dùng muốn công khai. Nếu lớp bảo vệ tạo ra những vệt màu, hạt nhiễu hoặc biến dạng dễ nhận thấy, chất lượng và giá trị sử dụng của ảnh sẽ bị ảnh hưởng.
+Tuy nhiên, giảm cường độ perturbation quá mức lại có thể khiến lớp bảo vệ dễ bị loại bỏ bởi nén ảnh, khử nhiễu hoặc purification . Vì vậy, các phương pháp protective perturbation phải giải quyết sự đánh đổi giữa ba yếu tố chính: mức độ khó nhận biết của nhiễu, hiệu quả bảo vệ và tính bền vững trước các phép xử lý dữ liệu .
+1.1.13. Mô hình đe doạ
+Mô hình đe doạ (Threat Model) mô tả các giả định về mục tiêu, khả năng và hành vi của bên tấn công mà một phương pháp bảo vệ cần xem xét , .
+Trong bối cảnh của đề tài, người dùng trước tiên thêm protective perturbation vào ảnh trước khi công khai. Sau khi ảnh xuất hiện trên Internet, dữ liệu có thể trải qua các bước xử lý như nén hoặc thay đổi kích thước. Một bên thứ ba sau đó có thể thu thập ảnh mà không được sự đồng ý của chủ sở hữu.
+Bên thu thập cũng có thể chủ động áp dụng các kỹ thuật tiền xử lý hoặc purification nhằm loại bỏ lớp nhiễu bảo vệ . Cuối cùng, những ảnh sau xử lý được sử dụng để fine-tune hoặc cá nhân hoá một mô hình sinh ảnh , .
+Một phương pháp bảo vệ hiệu quả cần duy trì khả năng gây cản trở quá trình học của mô hình ngay cả trong các điều kiện trên, đồng thời bảo đảm ảnh công khai vẫn duy trì chất lượng thị giác phù hợp.
+Mô hình đe doạ như vậy phản ánh trực tiếp ba vấn đề chính của đề tài: bảo vệ dữ liệu trước việc sử dụng trái phép, duy trì lớp bảo vệ sau các biến đổi thực tế và chống lại những cơ chế chủ động loại bỏ protective perturbation , .
+1.2. Tổng quan nghiên cứu
+1.2.1. Các nghiên cứu trên thế giới
+a) Nhận xét chung
+Qua khảo sát các công trình quốc tế, có thể nhận thấy lĩnh vực bảo vệ hình ảnh trước các mô hình sinh ảnh AI đang diễn ra như một cuộc "chạy đua vũ trang" liên tục. Các nghiên cứu trên thế giới phát triển theo ba giai đoạn rõ rệt: (1) Đề xuất các phương pháp protective perturbation sơ khai; (2) Phát triển các kỹ thuật purification nhằm phá vỡ lớp bảo vệ; và (3) Nâng cấp protective perturbation để chống lại các cơ chế purification và đường ống xử lý thực tế.
+Ở giai đoạn đầu tiên, các nghiên cứu tập trung vào việc tạo ra lớp nhiễu "tàng hình" để bảo vệ dữ liệu. Hai công trình tiêu biểu bao gồm:
+Công trình "Glaze(2023): Protecting Artists from Style Mimicry by Text-to-Image Models" của nhóm tác giả Shawn Shan, Jenna Cryan, Emily Wenger, Haitao Zheng, Rana Hanocka, và Ben Y. Zhao. Nghiên cứu này tập trung bảo vệ phong cách nghệ thuật của cá nhân bằng cách đánh lừa feature space của mô hình thông qua một pretrained feature encoder, khiến mô hình học sai đặc trưng phong cách.
+Công trình "Nightshade(2024): Prompt-Specific Poisoning Attacks on Text-to-Image Generative Models" của nhóm tác giả Shawn Shan, Wenxin Ding, Josephine Passananti, Stanley Wu, Haitao Zheng, và Ben Y. Zhao. Khác với Glaze, phương pháp này tạo ra sức răn đe mạnh mẽ hơn bằng cách đầu độc trực tiếp vào base model theo cơ chế prompt-specific poisoning. Chỉ với một lượng nhỏ dữ liệu nhiễm độc, nó có thể phá hủy hoàn toàn mối tương quan giữa văn bản gợi ý và hình ảnh sinh ra (ví dụ: yêu cầu sinh ảnh "con chó" nhưng lại ra "con mèo").
+Nhằm khắc phục điểm yếu dễ bị bẻ gãy bởi các phép biến đổi ảnh cơ bản của các phương pháp trên, công trình "MetaCloak(2024): Preventing Unauthorized Subject-driven Text-to-image Diffusion-based Synthesis via Meta-learning" của nhóm tác giả Yixin Liu, Chenrui Fan, Yutong Dai, Xun Chen, Pan Zhou, và Lichao Sun đã ra đời. Bằng cách kết hợp transformation sampling và hàm mất mát denoising-error maximization trên các steps-staggered surrogates, phương pháp này đã giải quyết được vấn đề sub-optimal của các heuristic thủ công, giúp nhiễu đối kháng có tính transferability cao hơn.
+Tuy nhiên, sự xuất hiện của các lớp bảo vệ đã thúc đẩy phe thu thập dữ liệu phát triển các công cụ purification nhằm "giải độc" ảnh. Điển hình trong nhóm này là:
+Công trình đề xuất phương pháp DiffPure (2022) mang tên "Diffusion Models for Adversarial Purification" của nhóm tác giả Weili Nie, Brandon Guo, Yujia Huang, Chaowei Xiao, Arash Vahdat, và Anima Anandkumar. Kỹ thuật này sử dụng SDEdit để thêm nhiễu Gaussian và khử nhiễu nhằm phá vỡ cấu trúc adversarial perturbation. Dù vậy, nó bị giới hạn ở độ phân giải thấp và dễ làm mất chi tiết ảnh.
+Để khắc phục, công trình "Can Protective Perturbation Safeguard Personal Data from Being Exploited by Stable Diffusion?(2023)" của nhóm tác giả Zhengyue Zhao, Jinhao Duan, Kaidi Xu, Chenan Wang, Rui Zhang, Zidong Du, Qi Guo, và Xing Hu đã đề xuất kỹ thuật GrIDPure. Phương pháp này chia ảnh độ phân giải cao thành các lưới nhỏ chồng lấp, áp dụng small-step SDEdit để xóa nhiễu tần số cao mà không làm hỏng chi tiết ngữ nghĩa. Thực nghiệm cho thấy nó có khả năng vô hiệu hóa hoàn toàn các lớp bảo vệ của Glaze, AdvDM hay Anti-DreamBooth.
+Để đối phó với các cỗ máy giải độc ngày càng tinh vi, thế hệ nghiên cứu thứ ba tập trung vào việc gia cố tính bền vững cho protective perturbation.
+Công trình "Towards Robust Defense against Customization via Protective Perturbation Resistant to Diffusion-based Purification(2025)" của nhóm tác giả Wenkui Yang, Jie Cao, Junxian Duan, và Ran He đã đề xuất phương pháp AntiPure, lần đầu tiên định nghĩa bài toán anti-purification. Bằng cách sử dụng Patch-wise Frequency Guidance để điều biến các dải tần số cao và Erroneous Timestep Guidance để làm rối loạn chiến lược khử nhiễu, phương pháp này giúp lớp nhiễu sống sót thành công qua quá trình lọc của GrIDPure.
+Đồng thời, công trình "MetaCloak-JPEG: JPEG-Robust Adversarial Perturbation for Preventing Unauthorized DreamBooth-Based Deepfake Generation(2024)" của nhóm tác giả Tanjim Rahaman Fardin, SM Zunaid Alam, Mahadi Hasan Fahim, và Md Faysal Mahfuz giải quyết "điểm mù cấu trúc" của các phương pháp trước đó: ảnh luôn bị nén tự động khi tải lên mạng xã hội. Bằng cách sử dụng Differentiable JPEG kết hợp bộ ước lượng Straight-Through Estimator, gradient có thể lan truyền qua hàm làm tròn của bộ nén, giúp năng lượng nhiễu không bị cắt bỏ ở dải tần cao, đạt tỷ lệ sống sót tới 91.3%.
+b) Khoảng trống nghiên cứu
+Qua khảo sát các công trình quốc tế có thể nhận thấy Protective Perturbation đã được phát triển theo nhiều hướng nhằm hạn chế việc dữ liệu hình ảnh bị sử dụng trái phép để huấn luyện hoặc cá nhân hóa mô hình sinh ảnh. Các nghiên cứu như Glaze, Anti-DreamBooth và MetaCloak đã cho thấy khả năng chủ động đưa tín hiệu bảo vệ vào hình ảnh trước khi công khai. Tuy nhiên, khi đặt các phương pháp này trong quy trình xử lý dữ liệu thực tế, vấn đề về độ bền vững của perturbation vẫn cần tiếp tục được nghiên cứu.
+Thứ nhất, Protective Perturbation có thể bị suy giảm sau các phép biến đổi dữ liệu phổ biến. Nhiều phương pháp đạt hiệu quả tốt khi ảnh bảo vệ được đưa trực tiếp vào quá trình huấn luyện hoặc cá nhân hóa mô hình. Trong thực tế, ảnh được công khai trên Internet có thể trải qua các thao tác như thay đổi kích thước, nén, chuyển đổi định dạng hoặc các bước tiền xử lý khác. Các phép biến đổi này có khả năng làm thay đổi cấu trúc của perturbation và làm giảm tác dụng bảo vệ.
+Thứ hai, nén JPEG đặt ra một thách thức đáng chú ý đối với Protective Perturbation. JPEG là phương pháp nén mất dữ liệu, trong đó một phần thông tin của ảnh được loại bỏ để giảm kích thước tệp. Do adversarial perturbation thường có biên độ nhỏ, những thay đổi do quá trình nén gây ra có thể làm suy giảm tín hiệu đối kháng. Vì vậy, hiệu quả được ghi nhận trên ảnh chưa nén chưa phản ánh đầy đủ khả năng bảo vệ khi dữ liệu được sử dụng trong môi trường thực tế.
+Các nghiên cứu về JPEG-robust adversarial perturbation và Differentiable JPEG cho thấy một hướng giải quyết tiềm năng là đưa quá trình nén vào vòng lặp tối ưu hóa. Thay vì xem JPEG chỉ là một phép kiểm tra sau khi perturbation đã được tạo, phép nén có thể được mô phỏng ngay trong quá trình tối ưu nhằm hướng thuật toán tới những perturbation có khả năng tồn tại tốt hơn sau nén.
+Thứ ba, việc tăng độ bền vững trước JPEG cần được xem xét đồng thời với chất lượng thị giác của hình ảnh. Protective Perturbation chỉ có ý nghĩa thực tiễn khi ảnh sau khi được bảo vệ vẫn có thể được người dùng chia sẻ và sử dụng bình thường. Nếu việc tăng độ bền của perturbation yêu cầu mức nhiễu quá lớn và gây ra những thay đổi dễ nhận biết, giá trị sử dụng của phương pháp sẽ bị giảm. Do đó, tồn tại sự đánh đổi giữa hiệu quả bảo vệ, khả năng duy trì tác dụng sau nén và chất lượng cảm nhận của hình ảnh.
+Từ những nhận xét trên, một khoảng trống có ý nghĩa thực tiễn là nghiên cứu mức độ ảnh hưởng của nén JPEG đối với Protective Perturbation và xây dựng phương pháp tạo perturbation có khả năng duy trì hiệu quả tốt hơn sau quá trình nén mà vẫn bảo đảm chất lượng thị giác của ảnh.
+Đây là vấn đề được lựa chọn làm trọng tâm nghiên cứu của đề tài.
+*1.2.2. Các nghiên cứu tại Việt Nam
+a) Nhận xét chung
+Qua các công trình được khảo sát có thể nhận thấy nghiên cứu về học máy đối kháng tại Việt Nam đã được triển khai theo nhiều hướng, từ tạo và tối ưu mẫu đối kháng, nâng cao độ bền vững của mô hình trước adversarial attack, loại bỏ nhiễu đối kháng, cho đến nghiên cứu các vấn đề an toàn của mô hình sinh ảnh từ văn bản. Tuy nhiên, phần lớn các công trình vẫn tập trung vào bài toán adversarial attack và adversarial defense đối với các mô hình thị giác truyền thống. Việc sử dụng nhiễu đối kháng như một cơ chế chủ động nhằm bảo vệ ảnh công khai trước nguy cơ bị thu thập để huấn luyện hoặc cá nhân hoá mô hình sinh ảnh mới chỉ xuất hiện trong một số ít nghiên cứu.
+Ở hướng tạo và tối ưu mẫu đối kháng, công trình “A novel generalized adversarial image method using descriptive features” (2023) của Hồ Trương Phi, Phạm Duy Trung và Bùi Thu Lâm đề xuất sử dụng mạng sinh đối kháng GAN để tạo các ảnh có khả năng đánh lừa YOLOv7 và InceptionV3. Nghiên cứu đồng thời sử dụng các chỉ số chất lượng ảnh để đánh giá mức độ biến đổi do quá trình tạo adversarial image gây ra. Điều này cho thấy bên cạnh khả năng tấn công mô hình, chất lượng cảm nhận của ảnh cũng đã được xem xét trong các nghiên cứu adversarial learning tại Việt Nam.
+Bài toán tối ưu chất lượng perturbation được nghiên cứu sâu hơn trong “Improving Diversity and Quality of Adversarial Examples in Adversarial Transformation Network” (2023) của Duc-Anh Nguyen và cộng sự. Nhóm tác giả đề xuất PatternAttack nhằm giải quyết hai hạn chế của Adversarial Transformation Network là mức độ đa dạng thấp và chất lượng chưa cao của adversarial examples. Phương pháp sử dụng stacked convolutional autoencoder để tạo nhiều dạng phân bố perturbation khác nhau, đồng thời tối ưu chất lượng mẫu đối kháng theo các chuẩn (L_0) và (L_2). Kết quả thực nghiệm trên MNIST và CIFAR-10 cho thấy phương pháp có thể tạo các mẫu đối kháng đa dạng với tỷ lệ tấn công cao, đồng thời giảm đáng kể lượng perturbation dư thừa. Nội dung này cho thấy việc kiểm soát vị trí, cường độ và mức độ ảnh hưởng của perturbation đã trở thành một vấn đề được quan tâm trong các nghiên cứu trong nước.
+Song song với hướng tạo nhiễu, các nghiên cứu trong nước cũng tiếp cận bài toán từ phía phòng vệ. “SCADefender: An Autoencoder-Based Defense for CNN-Based Image Classifiers” (2023) của Duc-Anh Nguyen và cộng sự sử dụng stacked convolutional autoencoder nhằm loại bỏ thành phần adversarial perturbation khỏi ảnh trước khi đưa vào mô hình phân loại. Phương pháp được đánh giá trên MNIST, Fashion-MNIST và CIFAR-10 và cho thấy khả năng nâng cao độ bền vững của mô hình trước adversarial attack. Nếu các nghiên cứu tạo adversarial example chứng minh khả năng đưa tín hiệu có chủ đích vào ảnh để làm sai lệch hành vi mô hình, SCADefender cho thấy chiều ngược lại cũng khả thi: perturbation có thể được chủ động phát hiện hoặc loại bỏ bằng một bước tiền xử lý phù hợp.
+Hướng loại bỏ nhiễu tiếp tục được mở rộng khi mô hình khuếch tán được sử dụng cho adversarial purification. Tại SOICT 2024, Minh Chau Nguyen và Ngoc Hoang Luong giới thiệu “Diffusion-Based Purification for Adversarial Defense in Medical Image Classification” (2024), trong đó diffusion model được sử dụng để làm sạch ảnh đối kháng trước khi thực hiện phân loại ảnh y tế. Công trình được công bố trong kỷ yếu SOICT 2024 và sau đó xuất bản trong bộ sách Information and Communication Technology của Springer. Mặc dù bài toán nghiên cứu khác với bảo vệ ảnh trước mô hình sinh, sự xuất hiện của diffusion-based purification có ý nghĩa đối với hướng nghiên cứu của đề tài, bởi nó cho thấy adversarial perturbation có thể phải đối mặt với các cơ chế khử nhiễu ngày càng mạnh hơn thay vì chỉ các bộ lọc ảnh truyền thống.
+Bên cạnh các nghiên cứu trên ảnh đầu vào của mô hình phân loại, nghiên cứu adversarial learning tại Việt Nam cũng bắt đầu mở rộng sang các hệ thống sinh ảnh từ văn bản. Công trình “Diverse Adversarial Samples for Text-to-Image Generation via Quality-Diversity Optimization” (2024) của Thai Huy Nguyen và Ngoc Hoang Luong, được trình bày tại SOICT 2024 và xuất bản trong kỷ yếu Springer, nghiên cứu việc tạo các adversarial text input đa dạng nhằm đánh giá độ bền vững của mô hình text-to-image. Mặc dù perturbation của nghiên cứu nằm ở không gian văn bản thay vì hình ảnh, công trình cho thấy phạm vi nghiên cứu adversarial learning trong nước đã bắt đầu chuyển từ các mô hình phân loại truyền thống sang chính các hệ thống generative AI.
+Trong số sáu công trình được khảo sát, “Anti-DreamBooth: Protecting Users from Personalized Text-to-image Synthesis” (2023) của Thanh Van Le, Hao Phung, Thuan Hoang Nguyen, Quan Dao, Ngoc N. Tran và Anh Tran là nghiên cứu có mối liên hệ trực tiếp nhất với đề tài. Công trình được công bố tại ICCV 2023 với phần lớn nhóm tác giả thuộc VinAI Research. Khác với các nghiên cứu adversarial attack truyền thống, Anti-DreamBooth xem adversarial perturbation như một cơ chế phòng vệ chủ động: trước khi ảnh được công khai, một lượng nhiễu khó nhận biết được thêm vào ảnh nhằm làm suy giảm chất lượng của các mô hình DreamBooth được fine-tune trái phép từ những ảnh này. Các phương pháp như FSMG và ASPL được nghiên cứu nhằm tối ưu perturbation trong bài toán hai cấp giữa quá trình tạo nhiễu và quá trình fine-tuning của DreamBooth. Anti-DreamBooth vì vậy có thể được xem là cầu nối trực tiếp giữa nền tảng adversarial learning đã được nghiên cứu trong nước và bài toán bảo vệ dữ liệu cá nhân trước sự phát triển của mô hình sinh ảnh.
+b) Khoảng trống nghiên cứu
+Qua các công trình được khảo sát có thể nhận thấy nghiên cứu về adversarial learning tại Việt Nam đã tiếp cận nhiều thành phần quan trọng, bao gồm tạo adversarial perturbation, nâng cao chất lượng adversarial example, adversarial defense, diffusion-based purification và đánh giá độ bền vững của các hệ thống trí tuệ nhân tạo.
+Tuy nhiên, phần lớn các nghiên cứu trong nước vẫn tập trung vào adversarial attack hoặc adversarial defense đối với các mô hình phân loại. Việc sử dụng adversarial perturbation theo hướng phòng vệ chủ động, tức thêm perturbation vào dữ liệu trước khi công khai nhằm ngăn dữ liệu bị sử dụng trái phép để huấn luyện mô hình sinh ảnh, vẫn còn tương đối hạn chế.
+Anti-DreamBooth là một trong những nghiên cứu có liên hệ trực tiếp với bài toán này. Công trình cho thấy Protective Perturbation có thể được sử dụng nhằm làm suy giảm khả năng cá nhân hóa mô hình DreamBooth khi hình ảnh của người dùng bị thu thập trái phép. Đồng thời, các thử nghiệm với những phép biến đổi như Gaussian blur và JPEG compression cho thấy việc xử lý lại ảnh có thể ảnh hưởng đến hiệu quả của perturbation.
+Điều này đặt ra một vấn đề quan trọng đối với khả năng triển khai Protective Perturbation trong thực tế. Ảnh công khai trên Internet có thể không được giữ nguyên từ thời điểm người dùng đăng tải đến thời điểm dữ liệu được một bên khác thu thập. Quá trình nén, chuyển đổi hoặc lưu trữ lại có thể làm thay đổi lớp nhiễu bảo vệ. Trong đó, JPEG compression là một trường hợp đáng chú ý do đây là một kỹ thuật nén ảnh mất dữ liệu phổ biến.
+Mặc dù các nghiên cứu trong nước đã cung cấp nền tảng về tạo perturbation, kiểm soát chất lượng adversarial example và Protective Perturbation cho DreamBooth, vấn đề xây dựng Protective Perturbation có khả năng thích ứng với nén JPEG chưa được nghiên cứu đầy đủ trong phạm vi các công trình được khảo sát.
+Bên cạnh đó, sự đánh đổi giữa ba yếu tố gồm hiệu quả bảo vệ, độ bền vững trước nén JPEG và chất lượng thị giác cũng cần được khảo sát cụ thể. Một perturbation có hiệu quả trên ảnh ban đầu nhưng mất tác dụng sau nén sẽ có giá trị ứng dụng hạn chế. Ngược lại, nếu tăng cường perturbation quá mức nhằm chống chịu quá trình nén, ảnh bảo vệ có thể xuất hiện biến dạng hoặc nhiễu dễ nhận biết.
+Từ đó, đề tài xác định khoảng trống nghiên cứu tập trung vào đánh giá ảnh hưởng của nén JPEG đến Protective Perturbation và nghiên cứu phương pháp tạo nhiễu bảo vệ có khả năng duy trì hiệu quả tốt hơn sau nén, đồng thời hạn chế ảnh hưởng đến chất lượng thị giác của hình ảnh.
+Khoảng trống này tạo cơ sở trực tiếp cho hướng nghiên cứu được trình bày tại Mục 1.3.
+1.3. Hướng nghiên cứu của đề tài
+Từ kết quả tổng quan các nghiên cứu trong và ngoài nước có thể nhận thấy Protective Perturbation là một hướng tiếp cận tiềm năng nhằm chủ động bảo vệ hình ảnh trước nguy cơ bị thu thập và sử dụng trái phép để huấn luyện hoặc cá nhân hóa mô hình sinh ảnh. Tuy nhiên, hiệu quả của lớp bảo vệ không chỉ phụ thuộc vào khả năng gây ảnh hưởng đến quá trình học của mô hình mà còn phụ thuộc vào khả năng duy trì tín hiệu đối kháng sau các phép biến đổi dữ liệu xảy ra trong thực tế.
+Trong số các phép biến đổi phổ biến, nén JPEG có ý nghĩa đặc biệt đối với bài toán bảo vệ hình ảnh. Hình ảnh được chia sẻ, lưu trữ hoặc truyền tải trên Internet có thể bị nén hoặc mã hóa lại nhằm giảm dung lượng dữ liệu. Do JPEG là phương pháp nén mất dữ liệu, một phần thông tin của ảnh sẽ bị loại bỏ trong quá trình nén. Điều này có thể làm suy giảm thành phần nhiễu đối kháng được thêm vào ảnh và từ đó làm giảm hiệu quả của Protective Perturbation.
+Xuất phát từ vấn đề trên và xét đến phạm vi thực hiện của đề tài, nghiên cứu tập trung vào đánh giá ảnh hưởng của nén JPEG và xây dựng Protective Perturbation có độ bền vững tốt hơn trước nén JPEG, thay vì đồng thời giải quyết nhiều cơ chế xử lý và loại bỏ nhiễu khác nhau.
+Hướng nghiên cứu được triển khai theo ba nội dung chính sau đây.
+1.3.1. Đánh giá ảnh hưởng của nén JPEG đến hiệu quả của Protective Perturbation
+Trước tiên, đề tài tiến hành khảo sát mức độ ảnh hưởng của nén JPEG đến Protective Perturbation.
+Trong điều kiện lý tưởng, ảnh sau khi được thêm nhiễu bảo vệ có thể được sử dụng trực tiếp làm dữ liệu đầu vào cho quá trình cá nhân hóa mô hình. Tuy nhiên, tình huống này chưa phản ánh đầy đủ môi trường sử dụng thực tế, bởi ảnh công khai có thể trải qua quá trình nén hoặc mã hóa lại trước khi được bên thứ ba thu thập.
+Đề tài xây dựng một quy trình thực nghiệm gồm các bước cơ bản:
+Ảnh gốc → Tạo Protective Perturbation → Nén JPEG → Sử dụng ảnh sau nén → Đánh giá hiệu quả bảo vệ.
+Ảnh bảo vệ được thử nghiệm với nhiều mức chất lượng JPEG khác nhau, từ mức nén nhẹ đến mức nén mạnh. Kết quả sau nén được so sánh với trường hợp ảnh bảo vệ chưa trải qua JPEG nhằm xác định mức độ suy giảm hiệu quả của Protective Perturbation.
+Thông qua thực nghiệm này, đề tài hướng tới trả lời câu hỏi nghiên cứu thứ nhất:
+Nén JPEG ảnh hưởng như thế nào đến hiệu quả của Protective Perturbation trong bài toán ngăn chặn việc sử dụng trái phép ảnh để cá nhân hóa mô hình sinh ảnh?
+Kết quả thu được là cơ sở để xác định sự cần thiết của việc thiết kế lớp nhiễu có khả năng thích ứng tốt hơn với JPEG.
+1.3.2. Nghiên cứu Protective Perturbation có khả năng thích ứng với nén JPEG
+Trên cơ sở kết quả đánh giá ở nội dung thứ nhất, đề tài tiếp tục nghiên cứu phương pháp tạo Protective Perturbation có xét đến ảnh hưởng của JPEG ngay trong quá trình tối ưu.
+Đối với phương pháp thông thường, perturbation được tối ưu trên ảnh chưa trải qua phép nén. Vì vậy, thuật toán có thể tạo ra các thành phần nhiễu mang lại hiệu quả đối kháng cao trên ảnh ban đầu nhưng dễ bị suy giảm sau quá trình JPEG compression.
+Để khắc phục hạn chế này, đề tài nghiên cứu việc đưa phép biến đổi JPEG vào vòng lặp tối ưu hóa. Thay vì chỉ đánh giá JPEG sau khi perturbation đã được tạo hoàn chỉnh, thuật toán được tiếp xúc với ảnh hưởng của quá trình nén ngay trong quá trình tìm kiếm perturbation.
+Quy trình nghiên cứu có thể được biểu diễn khái quát như sau:
+Ảnh gốc → Thêm perturbation → Mô phỏng JPEG → Tính hàm mất mát → Cập nhật perturbation.
+Do một số thành phần trong thuật toán JPEG gây khó khăn cho quá trình lan truyền gradient, đề tài khảo sát khả năng sử dụng mô hình JPEG khả vi (Differentiable JPEG) hoặc phương pháp xấp xỉ phù hợp để tích hợp phép nén vào quá trình tối ưu.
+Mục tiêu của hướng tiếp cận này không phải loại bỏ ảnh hưởng của JPEG mà là tạo ra perturbation có khả năng duy trì tác dụng tốt hơn sau khi ảnh bị nén.
+Từ đó, câu hỏi nghiên cứu thứ hai được đặt ra:
+Việc đưa nén JPEG vào quá trình tối ưu có giúp Protective Perturbation duy trì hiệu quả bảo vệ tốt hơn so với phương pháp tạo nhiễu thông thường hay không?
+1.3.3. Đánh giá sự đánh đổi giữa độ bền vững, hiệu quả bảo vệ và chất lượng thị giác
+Protective Perturbation không chỉ cần duy trì tác dụng đối với mô hình AI mà còn phải đảm bảo ảnh sau khi được bảo vệ vẫn có chất lượng phù hợp để người dùng chia sẻ và sử dụng.
+Việc tăng khả năng chống chịu trước JPEG có thể yêu cầu perturbation mạnh hơn hoặc thay đổi cách phân bố nhiễu trên ảnh. Điều này có nguy cơ làm giảm chất lượng cảm nhận của hình ảnh. Vì vậy, một phương pháp có độ bền cao trước JPEG nhưng tạo ra biến dạng dễ nhận biết cũng chưa đáp ứng đầy đủ yêu cầu ứng dụng thực tế.
+Đề tài do đó đánh giá phương pháp trên hai nhóm tiêu chí.
+Thứ nhất là hiệu quả bảo vệ và độ bền vững, thông qua việc so sánh khả năng duy trì tác dụng của Protective Perturbation trước và sau các mức nén JPEG khác nhau.
+Thứ hai là chất lượng thị giác, thông qua các chỉ số như PSNR, SSIM và LPIPS nhằm xác định mức độ khác biệt giữa ảnh gốc và ảnh sau khi được thêm perturbation.
+Các kết quả được so sánh giữa ảnh không được bảo vệ, phương pháp Protective Perturbation cơ sở và phương pháp có xét đến JPEG trong quá trình tối ưu. Qua đó, đề tài phân tích mức độ cải thiện về độ bền vững cũng như chi phí phải đánh đổi về chất lượng hình ảnh.
+Câu hỏi nghiên cứu thứ ba được đặt ra là:
+Có thể nâng cao độ bền vững của Protective Perturbation trước nén JPEG mà vẫn duy trì chất lượng thị giác của hình ảnh ở mức phù hợp hay không?
+Như vậy, hướng nghiên cứu của đề tài được giới hạn vào một vấn đề cụ thể nhưng có tính thực tiễn: xây dựng và đánh giá Protective Perturbation bền vững trước nén JPEG. Việc giới hạn phạm vi này cho phép đề tài tập trung phân tích sâu ảnh hưởng của một phép biến đổi dữ liệu phổ biến, xây dựng được quy trình thực nghiệm có khả năng kiểm chứng và đánh giá rõ ràng hiệu quả của phương pháp đề xuất.
+Các hướng nghiên cứu phức tạp hơn như chống lại diffusion-based purification, nâng cao khả năng chuyển giao giữa nhiều mô hình sinh ảnh hoặc kết hợp đồng thời nhiều loại biến đổi dữ liệu được xem là hướng phát triển tiếp theo trên cơ sở kết quả của nghiên cứu này.
+CHƯƠNG 2: PHÂN TÍCH, THIẾT KẾ VÀ PHÁT TRIỂN HỆ THỐNG BẢO VỆ ẢNH BỀN VỮNG TRƯỚC NÉN JPEG
+2.1. Phân tích yêu cầu hệ thống
+2.1.1. Phân tích đối tượng sử dụng hệ thống
+Hệ thống được xây dựng nhằm hỗ trợ bảo vệ hình ảnh trước nguy cơ bị thu thập và sử dụng trái phép để cá nhân hóa mô hình sinh ảnh. Trong bối cảnh các nền tảng trực tuyến cho phép người dùng chia sẻ lượng lớn hình ảnh cá nhân, các dữ liệu này có thể bị bên thứ ba thu thập và sử dụng làm dữ liệu fine-tuning mà không có sự đồng ý của chủ sở hữu.
+Đối tượng sử dụng chính của hệ thống là người sở hữu hình ảnh có nhu cầu chủ động bảo vệ dữ liệu trước khi công khai trên môi trường Internet. Người dùng cung cấp ảnh gốc cho hệ thống, lựa chọn các tham số bảo vệ và nhận lại ảnh đã được thêm nhiễu đối kháng bảo vệ. Ảnh đầu ra cần duy trì chất lượng thị giác phù hợp để có thể tiếp tục sử dụng, lưu trữ và chia sẻ trong điều kiện thông thường.
+Bên cạnh đối tượng sử dụng trực tiếp, hệ thống còn phục vụ nhu cầu nghiên cứu và đánh giá các phương pháp Protective Perturbation. Trong trường hợp này, người thực hiện nghiên cứu cần có khả năng kiểm soát các tham số như ngân sách nhiễu, số vòng lặp tối ưu, mức JPEG Quality và phương pháp tạo perturbation. Việc cung cấp khả năng cấu hình các tham số giúp hệ thống đáp ứng yêu cầu kiểm chứng và so sánh giữa các phương pháp trong cùng điều kiện thực nghiệm.
+Như vậy, hệ thống được định hướng theo hai mục tiêu song song: hỗ trợ bảo vệ ảnh trong kịch bản sử dụng thực tế và cung cấp môi trường thử nghiệm phục vụ đánh giá độ bền của Protective Perturbation trước nén JPEG.
+2.1.2. Phân tích bối cảnh và quy trình xử lý ảnh
+Trong môi trường Internet, ảnh được công khai thường không được giữ nguyên hoàn toàn so với dữ liệu ban đầu. Trong quá trình tải lên, lưu trữ, truyền tải hoặc tải xuống, ảnh có thể trải qua các phép biến đổi như thay đổi kích thước, chuyển đổi định dạng hoặc nén lại nhằm giảm dung lượng dữ liệu.
+Một quy trình chia sẻ ảnh thông thường có thể được mô tả như sau:
+Ảnh gốc → Công khai trên Internet → Xử lý hoặc nén ảnh → Thu thập dữ liệu → Sử dụng làm dữ liệu huấn luyện
+Trong quy trình này, sau thời điểm ảnh được công khai, chủ sở hữu không còn khả năng kiểm soát toàn bộ các bước xử lý tiếp theo. Nếu ảnh bị thu thập để fine-tune mô hình sinh ảnh, chủ sở hữu cũng không thể xác định trước phương thức tiền xử lý mà bên thu thập sẽ áp dụng.
+Protective Perturbation được sử dụng nhằm bổ sung một lớp bảo vệ ngay trước thời điểm công khai ảnh. Khi đó, quy trình được thay đổi thành:
+Ảnh gốc → Tạo Protective Perturbation → Công khai ảnh bảo vệ → Xử lý hoặc nén ảnh → Thu thập dữ liệu
+Tuy nhiên, hiệu quả của lớp bảo vệ có thể bị suy giảm nếu perturbation không có khả năng tồn tại sau các phép xử lý dữ liệu. Trong phạm vi đề tài, JPEG được lựa chọn làm phép biến đổi chính cần khảo sát do đây là một kỹ thuật nén ảnh mất dữ liệu phổ biến.
+Từ bối cảnh trên, hệ thống cần bảo đảm hai yêu cầu cơ bản. Thứ nhất, lớp perturbation phải tạo được tác động đủ lớn đối với quá trình học của mô hình. Thứ hai, tác động này cần được duy trì ở mức phù hợp sau khi ảnh trải qua nén JPEG.
+2.1.3. Xác định yêu cầu chức năng của hệ thống
+Dựa trên mục tiêu nghiên cứu và bối cảnh sử dụng, các yêu cầu chức năng của hệ thống được xác định như sau.
+a) Tiếp nhận và tiền xử lý ảnh
+Hệ thống cho phép tiếp nhận ảnh đầu vào, kiểm tra định dạng, chuyển đổi không gian màu, chuẩn hóa kích thước và giá trị điểm ảnh để phù hợp với mô hình được sử dụng.
+b) Tạo Protective Perturbation theo phương pháp cơ sở
+Hệ thống có khả năng tạo ảnh bảo vệ bằng phương pháp Protective Perturbation cơ sở. Kết quả này được sử dụng làm baseline trong quá trình so sánh với phương pháp đề xuất.
+c) Tạo JPEG-aware Protective Perturbation
+Hệ thống tích hợp mô-đun JPEG khả vi vào vòng lặp tối ưu, cho phép tạo perturbation có khả năng thích ứng với quá trình nén JPEG.
+d) Mô phỏng nhiều mức nén JPEG
+Hệ thống hỗ trợ nén ảnh tại nhiều mức chất lượng khác nhau nhằm mô phỏng các điều kiện xử lý ảnh thực tế. Trong phạm vi đề tài, ba mức chất lượng chính được sử dụng:
+Q ∈ {90, 70, 50}
+Trong đó Q = 90 tương ứng với mức nén nhẹ, Q = 70 tương ứng với mức nén trung bình và Q = 50 tương ứng với mức nén tương đối mạnh.
+e) Tổ chức và lưu trữ dữ liệu đầu ra
+Ảnh sau bảo vệ và ảnh sau nén được lưu trữ theo cấu trúc thống nhất, bảo đảm khả năng truy vết giữa ảnh gốc, ảnh baseline, ảnh JPEG-aware và các phiên bản JPEG tương ứng.
+f) Hỗ trợ đánh giá chất lượng ảnh
+Hệ thống cung cấp dữ liệu đầu vào cho các chỉ số đánh giá chất lượng như PSNR, SSIM và LPIPS.
+g) Hỗ trợ đánh giá hiệu quả bảo vệ
+Các tập ảnh sau xử lý được sử dụng làm dữ liệu fine-tuning DreamBooth nhằm đánh giá mức độ ảnh hưởng của Protective Perturbation đến khả năng cá nhân hóa mô hình.
+2.1.4. Xác định yêu cầu phi chức năng
+Ngoài các yêu cầu chức năng, hệ thống cần đáp ứng một số yêu cầu phi chức năng nhằm bảo đảm tính ổn định, khả năng đánh giá và tính khả thi trong triển khai.
+a) Yêu cầu về chất lượng thị giác
+Ảnh sau khi thêm perturbation phải duy trì mức tương đồng cao với ảnh gốc. Gọi ảnh gốc là x, perturbation là δ và ngân sách nhiễu là ε, điều kiện giới hạn perturbation được biểu diễn:
+‖δ‖∞ ≤ ε
+Ràng buộc này nhằm giới hạn mức thay đổi lớn nhất trên từng điểm ảnh.
+b) Yêu cầu về độ bền vững
+Ảnh bảo vệ cần duy trì hiệu quả khi trải qua nhiều mức JPEG Quality khác nhau, thay vì chỉ hoạt động tốt trong điều kiện ảnh chưa qua xử lý.
+c) Yêu cầu về tính tái lập
+Các tham số thực nghiệm quan trọng như seed, số vòng lặp, learning rate, ngân sách perturbation và JPEG Quality cần được lưu lại để có thể tái hiện kết quả.
+d) Yêu cầu về hiệu năng
+Quá trình tạo perturbation và fine-tuning mô hình cần phù hợp với tài nguyên phần cứng có thể tiếp cận trong phạm vi nghiên cứu.
+e) Yêu cầu về khả năng mở rộng
+Kiến trúc hệ thống cần cho phép thay đổi phương pháp baseline, bổ sung mức JPEG hoặc thêm các phép biến đổi khác mà không phải thay đổi toàn bộ hệ thống.
+2.2. Phân tích bài toán bảo vệ ảnh trước nén JPEG
+2.2.1. Mô tả bài toán
+Gọi ảnh gốc là x, perturbation được thêm vào ảnh là δ. Ảnh sau khi được bảo vệ được xác định:
+x_adv = x + δ
+Trong đó:
+x: ảnh gốc;
+δ: perturbation;
+x_adv: ảnh sau khi được bảo vệ.
+Để hạn chế ảnh hưởng của perturbation đến chất lượng thị giác, perturbation được giới hạn bởi ngân sách nhiễu ε:
+‖δ‖∞ ≤ ε
+Mục tiêu của Protective Perturbation là tạo ra một thay đổi nhỏ đối với người quan sát nhưng đủ gây ảnh hưởng đến quá trình học của mô hình nếu ảnh được sử dụng làm dữ liệu fine-tuning.
+Trong điều kiện không có biến đổi dữ liệu, ảnh x_adv được sử dụng trực tiếp làm dữ liệu huấn luyện. Tuy nhiên, trong môi trường thực tế, ảnh có thể bị nén trước khi được thu thập.
+Gọi J_Q(·) là phép nén JPEG với mức chất lượng Q, ảnh sau nén được biểu diễn:
+x_jpeg = J_Q(x_adv)
+hay:
+x_jpeg = J_Q(x + δ)
+Do JPEG là phép biến đổi mất dữ liệu, perturbation sau nén có thể khác đáng kể so với perturbation ban đầu. Do đó, bài toán nghiên cứu không chỉ yêu cầu perturbation có hiệu quả trên ảnh chưa nén mà còn cần duy trì tác dụng sau nén JPEG.
+2.2.2. Phân tích mô hình đe dọa
+Mô hình đe dọa của đề tài giả định rằng chủ sở hữu ảnh có khả năng áp dụng cơ chế bảo vệ trước khi công khai ảnh nhưng không kiểm soát quá trình xử lý sau đó.
+Quy trình được mô tả:
+Ảnh gốc
+↓
+Tạo Protective Perturbation
+↓
+Ảnh bảo vệ
+↓
+Công khai trên Internet
+↓
+Nén JPEG
+↓
+Thu thập dữ liệu
+↓
+DreamBooth Fine-tuning
+↓
+Mô hình cá nhân hóa
+↓
+Sinh ảnh mô phỏng chủ thể
+Trong mô hình này, bên thu thập có thể sử dụng ảnh sau nén làm dữ liệu fine-tuning. Bên bảo vệ không biết trước chính xác mức nén được áp dụng. Vì vậy, nếu perturbation chỉ được tối ưu cho một điều kiện duy nhất, khả năng bảo vệ thực tế có thể bị hạn chế.
+2.2.3. Phân tích ảnh hưởng của JPEG đến Protective Perturbation
+JPEG thực hiện nén ảnh thông qua các bước biến đổi và lượng tử hóa nhằm loại bỏ một phần thông tin ít ảnh hưởng đến cảm nhận thị giác. Mức chất lượng càng thấp thì mức độ loại bỏ thông tin càng lớn.
+Đối với Protective Perturbation, các thành phần perturbation thường có biên độ nhỏ. Khi ảnh trải qua nén JPEG, một phần perturbation có thể bị thay đổi hoặc loại bỏ trong quá trình lượng tử hóa.
+Với:
+x_adv = x + δ
+sau quá trình JPEG, ảnh trở thành:
+J_Q(x + δ)
+Không thể giả định rằng:
+J_Q(x + δ) = J_Q(x) + δ
+Điều này cho thấy perturbation không được bảo toàn nguyên vẹn sau nén.
+Mức độ suy giảm phụ thuộc vào JPEG Quality. Với Q cao, tác động của nén nhỏ hơn. Khi Q giảm, lượng thông tin bị loại bỏ tăng lên, từ đó nguy cơ perturbation mất tác dụng cũng tăng.
+2.2.4. Xác định yêu cầu đối với giải pháp
+Từ các phân tích trên, giải pháp cần đáp ứng ba tiêu chí.
+Thứ nhất, phương pháp phải tạo được Protective Perturbation có khả năng gây ảnh hưởng đến quá trình cá nhân hóa mô hình.
+Thứ hai, perturbation cần duy trì được hiệu quả ở nhiều mức JPEG Quality.
+Thứ ba, việc tăng độ bền JPEG phải được thực hiện trong giới hạn chất lượng thị giác chấp nhận được.
+Ba yếu tố trên tạo thành mối quan hệ đánh đổi:
+Hiệu quả bảo vệ ↔ Độ bền trước JPEG ↔ Chất lượng thị giác
+Đây là cơ sở chính cho việc thiết kế phương pháp JPEG-aware Protective Perturbation trong các mục tiếp theo.
+2.3. Thiết kế tổng thể hệ thống
+2.3.1. Nguyên tắc thiết kế hệ thống
+Hệ thống được thiết kế theo các nguyên tắc sau.
+Tính mô-đun: Các thành phần xử lý dữ liệu, tạo perturbation, nén JPEG, fine-tuning và đánh giá được tách thành các mô-đun độc lập.
+Tính nhất quán: Baseline và phương pháp JPEG-aware sử dụng cùng dữ liệu đầu vào, cùng mô hình và các tham số chung.
+Tính tái lập: Các tham số cấu hình được lưu lại nhằm phục vụ tái hiện thí nghiệm.
+Tính khả thi: Các thành phần hệ thống ưu tiên sử dụng mô hình và thư viện mã nguồn mở phù hợp với tài nguyên tính toán của nhóm nghiên cứu.
+Khả năng mở rộng: Hệ thống cho phép thay đổi baseline hoặc bổ sung các phép biến đổi khác trong các nghiên cứu tiếp theo.
+2.3.2. Kiến trúc tổng thể của hệ thống
+Hệ thống gồm sáu mô-đun chính:
+Mô-đun tiền xử lý dữ liệu;
+Mô-đun tạo Protective Perturbation;
+Mô-đun Differentiable JPEG;
+Mô-đun nén JPEG thực;
+Mô-đun DreamBooth;
+Mô-đun đánh giá.
+Luồng tổng thể được biểu diễn:
+Ảnh đầu vào
+↓
+Tiền xử lý
+↓
+Tạo Protective Perturbation
+↙　　　　　　　　　　　　↘
+Baseline　　　　　　JPEG-aware
+　　　　　　　　　　　　　　↓
+　　　　　　　　　Differentiable JPEG
+↘　　　　　　　　　　　　↙
+Ảnh bảo vệ
+↓
+JPEG Compression
+↓
+DreamBooth Fine-tuning
+↓
+Sinh ảnh kiểm thử
+↓
+Đánh giá
+2.3.3. Thiết kế luồng xử lý
+Quy trình xử lý được thực hiện theo các bước.
+Bước 1: Tiếp nhận ảnh đầu vào.
+Bước 2: Kiểm tra định dạng và tiền xử lý.
+Bước 3: Lựa chọn phương pháp tạo perturbation.
+Bước 4: Tối ưu perturbation trong giới hạn ε.
+Bước 5: Sinh ảnh bảo vệ.
+Bước 6: Tạo các phiên bản JPEG ở nhiều mức chất lượng.
+Bước 7: Tổ chức dữ liệu theo từng nhóm.
+Bước 8: Sử dụng dữ liệu để fine-tune DreamBooth.
+Bước 9: Sinh ảnh kiểm thử bằng bộ prompt thống nhất.
+Bước 10: Tính các chỉ số đánh giá.
+2.3.4. Thiết kế giao tiếp giữa các thành phần
+Các mô-đun trao đổi dữ liệu thông qua tệp ảnh và tệp cấu hình. Đầu ra của mô-đun tiền xử lý là đầu vào cho mô-đun tạo perturbation. Ảnh bảo vệ tiếp tục được chuyển sang mô-đun JPEG và DreamBooth.
+Dữ liệu được tổ chức theo cấu trúc:
+dataset/
+    clean/
+    baseline/
+        no_jpeg/
+        q90/
+        q70/
+        q50/
+    jpeg_aware/
+        no_jpeg/
+        q90/
+        q70/
+        q50/
+Tên tệp được duy trì nhất quán giữa các nhóm nhằm bảo đảm khả năng ghép cặp trong quá trình tính các chỉ số chất lượng ảnh.
+2.4. Xây dựng và xử lý bộ dữ liệu
+2.4.1. Xác định phạm vi và nội dung bộ dữ liệu
+Đề tài tập trung vào ảnh chân dung cá nhân. Đây là loại dữ liệu phù hợp với kịch bản cá nhân hóa mô hình sinh ảnh bằng DreamBooth.
+Dữ liệu được lựa chọn cần đáp ứng các tiêu chí:
+Có nhiều ảnh của cùng một chủ thể;
+Chủ thể xuất hiện rõ ràng;
+Có sự khác biệt về góc chụp, biểu cảm hoặc bối cảnh;
+Chất lượng ảnh đủ tốt;
+Có quyền sử dụng phù hợp cho mục đích nghiên cứu.
+Do đặc điểm few-shot của DreamBooth, đề tài sử dụng số lượng ảnh hạn chế cho mỗi chủ thể thay vì xây dựng một tập dữ liệu quy mô lớn.
+2.4.2. Quy trình chuẩn bị dữ liệu
+Quy trình chuẩn bị dữ liệu gồm:
+Dữ liệu ban đầu → Kiểm tra → Loại bỏ ảnh không phù hợp → Chuẩn hóa → Phân nhóm theo chủ thể → Dữ liệu đầu vào
+Ảnh mờ, ảnh có chủ thể bị che khuất hoặc ảnh không thể hiện rõ đặc trưng của chủ thể được loại bỏ.
+Mỗi chủ thể được gán một mã định danh riêng để thuận tiện trong quản lý dữ liệu và kết quả.
+2.4.3. Tiền xử lý dữ liệu
+Dữ liệu ảnh được xử lý theo các bước:
+Đọc ảnh và kiểm tra định dạng;
+Chuyển ảnh về không gian màu RGB;
+Điều chỉnh kích thước;
+Chuẩn hóa giá trị điểm ảnh;
+Tổ chức ảnh theo từng chủ thể.
+Quy trình tiền xử lý được áp dụng đồng nhất cho tất cả các nhóm dữ liệu.
+2.4.4. Xây dựng các mức nén JPEG
+Sau khi tạo ảnh bảo vệ, mỗi ảnh được tạo thành bốn phiên bản:
+Không nén;
+JPEG Q = 90;
+JPEG Q = 70;
+JPEG Q = 50.
+Các mức nén này được sử dụng để khảo sát xu hướng suy giảm của Protective Perturbation khi cường độ nén tăng.
+2.4.5. Tổ chức dữ liệu thực nghiệm
+Ba nhóm dữ liệu chính gồm:
+Mỗi nhóm được chia thành bốn điều kiện:
+Cấu trúc này cho phép thực hiện so sánh theo hai chiều: giữa các phương pháp ở cùng mức nén và giữa các mức nén của cùng một phương pháp.
+2.5. Xây dựng và tối ưu phương pháp bảo vệ ảnh
+2.5.1. Lựa chọn phương pháp Protective Perturbation cơ sở
+Phương pháp baseline được lựa chọn dựa trên các tiêu chí:
+Có liên hệ trực tiếp với bài toán bảo vệ ảnh trước cá nhân hóa mô hình sinh ảnh;
+Có mô tả thuật toán rõ ràng;
+Có khả năng tái hiện;
+Phù hợp với mô hình DreamBooth;
+Có thể triển khai trong điều kiện tài nguyên của đề tài.
+Trong phạm vi nghiên cứu, Anti-DreamBooth được lựa chọn làm hướng baseline ưu tiên do có mục tiêu trực tiếp là bảo vệ ảnh khỏi quá trình cá nhân hóa DreamBooth.
+2.5.2. Phương pháp Protective Perturbation cơ sở
+Phương pháp baseline tìm perturbation δ nhằm tối ưu hàm mất mát bảo vệ L_protect.
+Biểu diễn tổng quát:
+δ = arg max L_protect(x + δ; θ)*
+với điều kiện:
+‖δ‖∞ ≤ ε
+Trong đó:
+x: ảnh gốc;
+δ: perturbation;
+δ*: perturbation tối ưu;
+θ: tham số của mô hình;
+L_protect: hàm mất mát bảo vệ;
+ε: ngân sách perturbation.
+Sau mỗi bước cập nhật:
+δ ← Clip(δ, −ε, ε)
+Ảnh bảo vệ cuối cùng:
+x_adv = Clip(x + δ)
+2.5.3. Phân tích hạn chế của baseline
+Trong baseline, perturbation được tối ưu trực tiếp trên ảnh:
+x + δ
+Hàm mất mát được tính trước khi ảnh trải qua JPEG. Vì vậy, quá trình tối ưu không phản ánh được sự thay đổi của perturbation khi ảnh bị nén.
+Điều này có thể khiến thuật toán tạo ra các thành phần perturbation có hiệu quả trên ảnh ban đầu nhưng dễ bị suy giảm sau quá trình JPEG.
+2.5.4. Thiết kế mô-đun Differentiable JPEG
+JPEG thông thường bao gồm các bước lượng tử hóa và làm tròn. Các phép toán này gây khó khăn cho quá trình lan truyền gradient.
+Để đưa JPEG vào vòng lặp tối ưu, hệ thống sử dụng một phép xấp xỉ JPEG khả vi, ký hiệu:
+J̃_Q(·)
+Ảnh sau JPEG khả vi:
+x̃_jpeg = J̃_Q(x + δ)
+Phép biến đổi J̃_Q cho phép gradient được lan truyền trong quá trình tối ưu, từ đó tạo điều kiện để perturbation thích ứng với ảnh hưởng của JPEG.
+2.5.5. Phương pháp JPEG-aware Protective Perturbation
+Phương pháp đề xuất thay đổi vị trí tính hàm mất mát.
+Đối với baseline:
+x + δ → L_protect
+Đối với JPEG-aware:
+x + δ → J̃_Q(x + δ) → L_protect
+Hàm mục tiêu của phương pháp đề xuất:
+δ = arg max L_protect(J̃_Q(x + δ); θ)*
+với điều kiện:
+‖δ‖∞ ≤ ε
+Để tránh perturbation chỉ thích nghi với một mức JPEG cố định, tập chất lượng được xác định:
+S_Q = {50, 70, 90}
+Tại vòng lặp thứ t:
+Q_t ∈ S_Q
+Ảnh được biến đổi:
+x̃_t = J̃_Qt(x + δ_t)
+Hàm mất mát:
+L_t = L_protect(x̃_t; θ)
+Gradient:
+g_t = ∇_δ L_t
+Perturbation được cập nhật:
+δ_(t+1) = δ_t + α × sign(g_t)
+Sau đó giới hạn:
+δ_(t+1) = Clip(δ_(t+1), −ε, ε)
+2.5.6. Thuật toán JPEG-aware Protective Perturbation
+Đầu vào:
+Ảnh gốc x;
+Mô hình f_θ;
+Ngân sách nhiễu ε;
+Bước cập nhật α;
+Số vòng lặp T;
+Tập JPEG Quality S_Q = {50, 70, 90}.
+Đầu ra: ảnh bảo vệ x_adv.
+Quy trình thực hiện:
+Bước 1. Khởi tạo:
+δ₀ = 0
+Bước 2. Với mỗi vòng lặp t = 0, 1, ..., T − 1:
+Tạo ảnh tạm thời:
+
+ x′_t = x + δ_t
+
+Chọn JPEG Quality:
+
+ Q_t ∈ S_Q
+
+Áp dụng JPEG khả vi:
+
+ x̃_t = J̃_Qt(x′_t)
+
+Tính hàm mất mát:
+
+ L_t = L_protect(x̃_t; θ)
+
+Tính gradient:
+
+ g_t = ∇_δ L_t
+
+Cập nhật perturbation:
+
+ δ_(t+1) = δ_t + α × sign(g_t)
+
+Giới hạn perturbation:
+
+ δ_(t+1) = Clip(δ_(t+1), −ε, ε)
+
+Bước 3. Tạo ảnh bảo vệ:
+x_adv = Clip(x + δ_T)
+2.5.7. Giả mã thuật toán
+Algorithm: JPEG-aware Protective Perturbation
+Input:
+    Image x
+    Model fθ
+    Perturbation budget ε
+    Step size α
+    Number of iterations T
+    JPEG quality set SQ = {50, 70, 90}
+Output:
+    Protected image x_adv
+1. Initialize δ = 0
+2. For t = 1 to T:
+       Select Q from SQ
+       x_temp = x + δ
+       x_jpeg = DifferentiableJPEG(x_temp, Q)
+       loss = ProtectiveLoss(x_jpeg, fθ)
+       gradient = ∇δ loss
+       δ = δ + α × sign(gradient)
+       δ = Clip(δ, -ε, ε)
+3. x_adv = Clip(x + δ)
+4. Return x_adv
+2.5.8. So sánh baseline và phương pháp đề xuất
+Điểm khác biệt cốt lõi của phương pháp đề xuất là việc đưa ảnh hưởng của JPEG vào quá trình tạo perturbation thay vì chỉ kiểm tra perturbation sau khi quá trình tối ưu đã hoàn tất.
+2.6. Triển khai hệ thống
+2.6.1. Môi trường triển khai
+Hệ thống được xây dựng bằng Python và thư viện PyTorch. Quá trình xử lý ảnh, tạo perturbation và fine-tuning mô hình sử dụng GPU hỗ trợ CUDA nhằm rút ngắn thời gian tính toán.
+Các thành phần phần mềm chính gồm:
+Cấu hình phần cứng bao gồm CPU, RAM, GPU và dung lượng lưu trữ được lựa chọn phù hợp với yêu cầu của mô hình và quy mô thực nghiệm.
+2.6.2. Triển khai mô-đun tiền xử lý
+Mô-đun tiền xử lý thực hiện các chức năng:
+đọc ảnh đầu vào;
+kiểm tra định dạng;
+chuyển đổi sang RGB;
+thay đổi kích thước;
+chuẩn hóa giá trị điểm ảnh;
+lưu dữ liệu theo cấu trúc thống nhất.
+Dữ liệu sau tiền xử lý được sử dụng chung cho baseline và JPEG-aware nhằm bảo đảm tính nhất quán.
+2.6.3. Triển khai mô-đun tạo Protective Perturbation
+Mô-đun tạo perturbation có hai chế độ.
+Baseline mode: tạo perturbation theo phương pháp cơ sở.
+JPEG-aware mode: bổ sung Differentiable JPEG vào vòng lặp tối ưu.
+Mỗi ảnh đầu ra được lưu kèm thông tin về phương pháp, ngân sách nhiễu và các tham số tối ưu.
+2.6.4. Triển khai mô-đun JPEG
+Mô-đun JPEG gồm hai thành phần.
+JPEG khả vi được sử dụng trong quá trình tối ưu của phương pháp JPEG-aware.
+JPEG thông thường được sử dụng để tạo các phiên bản ảnh ở Q = 90, Q = 70 và Q = 50.
+Việc tách hai thành phần giúp quá trình tối ưu và quá trình đánh giá sử dụng hai cơ chế riêng biệt, từ đó hạn chế việc kết quả phụ thuộc vào một phép xấp xỉ duy nhất.
+2.6.5. Triển khai mô-đun DreamBooth
+Mô-đun DreamBooth được sử dụng để mô phỏng tình huống bên thứ ba sử dụng ảnh thu thập được để cá nhân hóa mô hình.
+Đối với mỗi nhóm dữ liệu, mô hình được fine-tune với cùng các điều kiện gồm:
+mô hình khởi tạo;
+số lượng ảnh;
+prompt;
+số bước fine-tuning;
+learning rate;
+seed;
+các tham số sinh ảnh.
+Việc giữ nhất quán các điều kiện trên giúp bảo đảm sự khác biệt về kết quả chủ yếu xuất phát từ phương pháp bảo vệ và mức JPEG.
+2.6.6. Triển khai mô-đun đánh giá
+Mô-đun đánh giá gồm hai nhóm chức năng.
+Đánh giá chất lượng ảnh
+Các chỉ số được sử dụng gồm:
+PSNR: đo mức sai khác ở cấp điểm ảnh. Giá trị PSNR càng cao thể hiện ảnh bảo vệ càng gần ảnh gốc.
+SSIM: đánh giá mức tương đồng về cấu trúc. Giá trị SSIM càng gần 1 thể hiện mức tương đồng càng cao.
+LPIPS: đánh giá khoảng cách cảm nhận dựa trên đặc trưng học sâu. Giá trị LPIPS càng thấp thể hiện hai ảnh càng tương đồng về mặt cảm nhận.
+Đánh giá hiệu quả bảo vệ
+Sau fine-tuning, mô hình được sử dụng để sinh ảnh bằng cùng một bộ prompt kiểm thử. Mức độ tái tạo đặc trưng của chủ thể được sử dụng làm cơ sở đánh giá hiệu quả của Protective Perturbation.
+Ba mô hình tương ứng được xem xét:
+M_clean: fine-tune bằng ảnh sạch.
+M_baseline: fine-tune bằng ảnh baseline.
+M_JPEG-aware: fine-tune bằng ảnh JPEG-aware.
+Nếu mô hình được fine-tune từ ảnh bảo vệ có khả năng tái tạo chủ thể thấp hơn mô hình được fine-tune từ ảnh sạch, phương pháp bảo vệ được xem là tạo ra tác động đối với quá trình cá nhân hóa.
+2.6.7. Quy trình triển khai tổng thể
+Quy trình triển khai hệ thống gồm các bước:
+Bước 1: Chuẩn bị dữ liệu ảnh.
+Bước 2: Tiền xử lý dữ liệu.
+Bước 3: Tạo tập Baseline.
+Bước 4: Tạo tập JPEG-aware.
+Bước 5: Tạo các phiên bản JPEG.
+Bước 6: Tổ chức dữ liệu theo nhóm và mức nén.
+Bước 7: Fine-tune DreamBooth.
+Bước 8: Sinh ảnh kiểm thử.
+Bước 9: Tính các chỉ số chất lượng và hiệu quả bảo vệ.
+Bước 10: Tổng hợp dữ liệu phục vụ đánh giá.
+[TABLE] 1. Lê Xuân Nhân
+[TABLE] B23DCKH083
+[TABLE] 2. Đào Bình Minh
+[TABLE] B23DCKH076
+[TABLE] 3. Trần Đào Trung Kiên
+[TABLE] B23DCKH068
+[TABLE] 4. Hà Huy Khôi
+[TABLE] B23DCKH066
+[TABLE] 5. Nguyễn Văn Long
+[TABLE] B23DCKH072
+[TABLE] 6. Phạm Ngọc Linh
+[TABLE] B23DCKH071
+[TABLE] 7. Đặng Hồng Lâm
+[TABLE] B23DCKH069
+[TABLE] Thành viên
+[TABLE] MSV
+[TABLE] Vai trò
+[TABLE] Nhóm
+[TABLE] Nội dung
+[TABLE] Clean
+[TABLE] Ảnh gốc
+[TABLE] Baseline
+[TABLE] Ảnh được bảo vệ bằng phương pháp cơ sở
+[TABLE] JPEG-aware
+[TABLE] Ảnh được bảo vệ bằng phương pháp đề xuất
+[TABLE] Phương pháp
+[TABLE] Không nén
+[TABLE] Q = 90
+[TABLE] Q = 70
+[TABLE] Q = 50
+[TABLE] Clean
+[TABLE] ✓
+[TABLE] ✓
+[TABLE] ✓
+[TABLE] ✓
+[TABLE] Baseline
+[TABLE] ✓
+[TABLE] ✓
+[TABLE] ✓
+[TABLE] ✓
+[TABLE] JPEG-aware
+[TABLE] ✓
+[TABLE] ✓
+[TABLE] ✓
+[TABLE] ✓
+[TABLE] Thành phần
+[TABLE] Baseline
+[TABLE] JPEG-aware
+[TABLE] Protective loss
+[TABLE] Có
+[TABLE] Có
+[TABLE] Giới hạn perturbation
+[TABLE] Có
+[TABLE] Có
+[TABLE] Differentiable JPEG
+[TABLE] Không
+[TABLE] Có
+[TABLE] Nhiều mức JPEG trong tối ưu
+[TABLE] Không
+[TABLE] Có
+[TABLE] JPEG thực khi đánh giá
+[TABLE] Có
+[TABLE] Có
+[TABLE] Mục tiêu
+[TABLE] Bảo vệ ảnh
+[TABLE] Bảo vệ ảnh bền hơn trước JPEG
+[TABLE] Thành phần
+[TABLE] Công nghệ
+[TABLE] Ngôn ngữ lập trình
+[TABLE] Python
+[TABLE] Framework học sâu
+[TABLE] PyTorch
+[TABLE] Mô hình sinh ảnh
+[TABLE] Stable Diffusion
+[TABLE] Phương pháp cá nhân hóa
+[TABLE] DreamBooth
+[TABLE] Xử lý ảnh
+[TABLE] Pillow, OpenCV
+[TABLE] Mô phỏng JPEG
+[TABLE] Differentiable JPEG
+[TABLE] Đánh giá chất lượng
+[TABLE] PSNR, SSIM, LPIPS
+[TABLE] Tăng tốc tính toán
+[TABLE] CUDA

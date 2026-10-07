@@ -1,0 +1,18 @@
+.git
+.gitignore
+.dockerignore
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+venv
+.venv
+env
+backend/outputs/*
+!backend/outputs/.gitkeep
+cloudflared.exe
+*.docx
+cau2_extracted.txt
+Cu 2.txt
+*.log

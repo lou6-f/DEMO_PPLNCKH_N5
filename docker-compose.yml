@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  privacyshield:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: privacyshield_app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+    volumes:
+      - ./backend/outputs:/app/backend/outputs

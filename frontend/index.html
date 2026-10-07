@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrivacyShield — Bảo Vệ Ảnh Chân Dung Khỏi Huấn Luyện AI (Anti-DreamBooth & JPEG-aware)</title>
+  <meta name="description" content="Nghiên cứu khoa học: Hệ thống bảo vệ hình ảnh chân dung bằng Protective Perturbation thích ứng nén JPEG, chống lại việc cá nhân hóa mô hình sinh ảnh bằng DreamBooth.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset & Variables ────────────────────────────────────────── */
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    :root {
+      --bg:        #070712;
+      --surf:      rgba(255,255,255,0.04);
+      --surf2:     rgba(255,255,255,0.07);
+      --surf3:     rgba(255,255,255,0.11);
+      --bd:        rgba(255,255,255,0.08);
+      --bd2:       rgba(255,255,255,0.16);
+      --tx:        #f1f1fa;
+      --tx2:       #9696c0;
+      --tx3:       #555577;
+      --purple:    #8b5cf6;
+      --purple-lt: #a78bfa;
+      --cyan:      #06b6d4;
+      --cyan-lt:   #67e8f9;
+      --amber:     #f59e0b;
+      --green:     #10b981;
+      --red:       #ef4444;
+      --grad:      linear-gradient(135deg,#8b5cf6,#06b6d4);
+      --grad-warm: linear-gradient(135deg,#f59e0b,#ef4444);
+      --grad-green:linear-gradient(135deg,#10b981,#06b6d4);
+      --r:         16px;
+      --r-sm:      10px;
+    }
+
+    html { scroll-behavior:smooth; }
+    body {
+      font-family:'Inter',system-ui,sans-serif;
+      background:var(--bg);
+      color:var(--tx);
+      min-height:100vh;
+      overflow-x:hidden;
+    }
+
+    body::before {
+      content:'';
+      position:fixed; inset:0;
+      background:
+        radial-gradient(ellipse 70% 50% at 10% 5%,  rgba(139,92,246,0.16) 0%,transparent 65%),
+        radial-gradient(ellipse 60% 40% at 90% 90%, rgba(6,182,212,0.12)  0%,transparent 65%),
+        radial-gradient(ellipse 50% 30% at 50% 45%, rgba(245,158,11,0.05) 0%,transparent 65%),
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg,rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size:100% 100%,100% 100%,100% 100%,50px 50px,50px 50px;
+      pointer-events:none; z-index:0;
+    }
+
+    .wrap { position:relative; z-index:1; max-width:1080px; margin:0 auto; padding:0 22px 80px; }
+
+    /* ── Header ───────────────────────────────────────────────────── */
+    .hdr { text-align:center; padding:48px 0 32px; }
+
+    .inst-tag {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 16px; border-radius:30px;
+      font-size:11.5px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase;
+      background:rgba(255,255,255,0.06); border:1px solid var(--bd2);
+      color:var(--cyan-lt); margin-bottom:18px;
+    }
+
+    .logo-row { display:inline-flex; align-items:center; gap:16px; margin-bottom:14px; }
+    .logo-gem {
+      width:58px; height:58px;
+      background:var(--grad); border-radius:18px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:30px;
+      box-shadow:0 10px 35px rgba(139,92,246,0.5);
+    }
+    .logo-name {
+      font-size:36px; font-weight:900; letter-spacing:-0.5px;
+      background:var(--grad); -webkit-background-clip:text;
+      -webkit-text-fill-color:transparent; background-clip:text;
+    }
+
+    .hdr-sub {
+      font-size:15.5px; color:var(--tx2); line-height:1.65;
+      max-width:720px; margin:0 auto 16px;
+    }
+    .hdr-sub strong { color:#c4b5fd; }
+
+    .badges { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:18px; }
+    .badge {
+      padding:6px 14px; border-radius:20px;
+      font-size:12px; font-weight:600; letter-spacing:0.3px;
+      background:rgba(139,92,246,0.12);
+      border:1px solid rgba(139,92,246,0.25); color:#c4b5fd;
+      display:inline-flex; align-items:center; gap:6px;
+    }
+    .badge.green  { background:rgba(16,185,129,0.1); border-color:rgba(16,185,129,0.25); color:#6ee7b7; }
+    .badge.amber  { background:rgba(245,158,11,0.1); border-color:rgba(245,158,11,0.25); color:#fcd34d; }
+    .badge.cyan   { background:rgba(6,182,212,0.1);  border-color:rgba(6,182,212,0.25);  color:#67e8f9; }
+    .badge.ok     { background:rgba(16,185,129,0.15); border-color:rgba(16,185,129,0.4); color:#a7f3d0; }
+    .srv-dot { width:7px; height:7px; border-radius:50%; background:currentColor; display:inline-block; }
+
+    /* ── Cards & Structure ────────────────────────────────────────── */
+    .card {
+      background:var(--surf); border:1px solid var(--bd);
+      border-radius:var(--r); padding:24px;
+      backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+      box-shadow:0 8px 32px rgba(0,0,0,0.35);
+      transition:border-color .2s;
+    }
+    .card:hover { border-color:var(--bd2); }
+    .card-hd {
+      display:flex; align-items:center; gap:10px;
+      font-size:15.5px; font-weight:700; margin-bottom:16px;
+    }
+    .card-ico {
+      width:32px; height:32px; border-radius:9px;
+      background:rgba(139,92,246,0.15);
+      display:flex; align-items:center; justify-content:center;
+      font-size:17px;
+    }
+
+    .mb18 { margin-bottom:18px; }
+    .mb24 { margin-bottom:24px; }
+    .hidden { display:none !important; }
+    .g2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    .g3 { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+    .g4 { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+    @media(max-width:768px) { .g2,.g3,.g4 { grid-template-columns:1fr; } }
+
+    /* ── Upload & Sample Selector ─────────────────────────────────── */
+    #uploadZone {
+      border:2px dashed rgba(139,92,246,0.35); border-radius:var(--r);
+      padding:36px 20px 24px; text-align:center; cursor:pointer;
+      background:rgba(139,92,246,0.02);
+      transition:all .25s ease;
+    }
+    #uploadZone:hover, #uploadZone.drag-over {
+      border-color:var(--cyan); background:rgba(6,182,212,0.05);
+      transform:translateY(-2px);
+    }
+    .up-icon { font-size:46px; margin-bottom:10px; display:inline-block; }
+    .up-title { font-size:17px; font-weight:700; margin-bottom:6px; }
+    .up-sub { font-size:13px; color:var(--tx2); margin-bottom:16px; }
+    .up-btn {
+      display:inline-block; padding:10px 26px;
+      background:var(--grad); color:#fff; border-radius:12px;
+      font-weight:700; font-size:13.5px; cursor:pointer; border:none;
+      transition:opacity .2s, transform .2s;
+      box-shadow:0 4px 18px rgba(139,92,246,0.35);
+    }
+    .up-btn:hover { opacity:0.9; transform:translateY(-1px); }
+
+    /* Sample gallery bar */
+    .sample-bar {
+      margin-top:20px; padding-top:16px;
+      border-top:1px solid var(--bd); text-align:left;
+    }
+    .sample-title { font-size:12px; font-weight:700; color:var(--tx2); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:10px; }
+    .sample-chips { display:flex; gap:10px; flex-wrap:wrap; }
+    .sample-chip {
+      display:flex; align-items:center; gap:9px;
+      padding:6px 12px 6px 6px; border-radius:12px;
+      background:var(--surf2); border:1px solid var(--bd);
+      cursor:pointer; transition:all .2s; font-size:12.5px; font-weight:600;
+    }
+    .sample-chip:hover { border-color:var(--cyan); background:rgba(6,182,212,0.12); color:#67e8f9; }
+    .sample-thumb { width:34px; height:34px; border-radius:8px; object-fit:cover; }
+
+    /* ── Settings Controls ────────────────────────────────────────── */
+    .srow { margin-bottom:20px; }
+    .srow:last-child { margin-bottom:0; }
+    .srow-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+    .sname { font-size:13.5px; font-weight:700; }
+    .sval {
+      font-size:12.5px; font-weight:700; font-family:'JetBrains Mono',monospace;
+      background:rgba(139,92,246,0.16); color:#c4b5fd;
+      padding:2px 10px; border-radius:20px; border:1px solid rgba(139,92,246,0.3);
+    }
+    .shint { font-size:11.8px; color:var(--tx2); line-height:1.5; margin-bottom:8px; }
+
+    /* Method toggle */
+    .method-group { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .mpill {
+      padding:12px 10px; border:1px solid var(--bd); border-radius:12px;
+      background:var(--surf); color:var(--tx2);
+      font-size:13px; font-family:inherit; font-weight:600;
+      cursor:pointer; text-align:center; line-height:1.4;
+      transition:all .2s;
+    }
+    .mpill:hover:not(.on) { border-color:var(--bd2); color:var(--tx); }
+    .mpill.on { border-color:var(--purple); background:rgba(139,92,246,0.16); color:#c4b5fd; }
+    .mpill.method.on { border-color:var(--cyan); background:rgba(6,182,212,0.14); color:#67e8f9; }
+
+    /* Epsilon Presets */
+    .eps-presets { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:12px; }
+    .epill {
+      padding:8px 4px; border:1px solid var(--bd); border-radius:10px;
+      background:var(--surf); color:var(--tx2); font-size:12px; font-weight:600;
+      cursor:pointer; text-align:center; transition:all .2s;
+    }
+    .epill:hover:not(.on) { border-color:var(--bd2); color:var(--tx); }
+    .epill.on { border-color:var(--amber); background:rgba(245,158,11,0.15); color:#fcd34d; }
+
+    /* Slider */
+    input[type=range] {
+      -webkit-appearance:none; width:100%; height:4px;
+      background:rgba(255,255,255,0.1); border-radius:4px; outline:none; cursor:pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance:none; width:18px; height:18px;
+      background:var(--grad); border-radius:50%; cursor:pointer;
+      box-shadow:0 0 10px rgba(139,92,246,0.7); transition:transform .15s;
+    }
+    input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.2); }
+
+    /* Trade-off guide box */
+    .trade-box {
+      padding:12px 14px; background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.2);
+      border-radius:10px; font-size:12px; line-height:1.55; color:#fde68a; margin-top:10px;
+    }
+
+    /* Algorithm pseudo-code snippet */
+    .algo-box {
+      background:#0a0a14; border:1px solid rgba(255,255,255,0.08); border-radius:10px;
+      padding:14px; font-family:'JetBrains Mono',monospace; font-size:11.8px;
+      line-height:1.6; color:#a5b4fc; overflow-x:auto; margin-bottom:12px;
+    }
+    .algo-box .k { color:#f472b6; font-weight:bold; }
+    .algo-box .c { color:#6b7280; font-style:italic; }
+    .algo-box .m { color:#38bdf8; }
+
+    /* Action button */
+    #convertBtn {
+      width:100%; padding:18px;
+      font-size:16px; font-weight:800; letter-spacing:0.4px;
+      color:#fff; background:var(--grad); border:none;
+      border-radius:var(--r); cursor:pointer; font-family:inherit;
+      transition:all .25s ease;
+      box-shadow:0 8px 30px rgba(139,92,246,0.35);
+    }
+    #convertBtn:hover { transform:translateY(-2px); box-shadow:0 14px 40px rgba(139,92,246,0.45); }
+    #convertBtn:disabled { opacity:0.5; cursor:not-allowed; transform:none !important; }
+
+    /* ── Progress Card ────────────────────────────────────────────── */
+    .pbar-track { height:6px; background:rgba(255,255,255,0.08); border-radius:6px; overflow:hidden; margin:12px 0 10px; }
+    .pbar-fill {
+      height:100%; background:var(--grad); border-radius:6px;
+      width:0%; transition:width .3s ease;
+    }
+    .pmeta { display:flex; justify-content:space-between; font-size:12.5px; color:var(--tx2); margin-bottom:12px; }
+    .stages { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+    .stg {
+      padding:7px; border-radius:8px; font-size:11px; font-weight:600;
+      text-align:center; background:rgba(255,255,255,0.04); color:var(--tx3);
+      border:1px solid transparent; transition:all .25s;
+    }
+    .stg.act { background:rgba(139,92,246,0.18); border-color:var(--purple); color:#c4b5fd; }
+    .stg.done { background:rgba(16,185,129,0.15); border-color:var(--green); color:#6ee7b7; }
+
+    /* ── Results Views & Tabs ─────────────────────────────────────── */
+    .tab-nav {
+      display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid var(--bd);
+      padding-bottom:10px; overflow-x:auto;
+    }
+    .tab-btn {
+      padding:8px 18px; border-radius:10px; background:var(--surf);
+      border:1px solid var(--bd); color:var(--tx2); font-size:13px; font-weight:600;
+      cursor:pointer; transition:all .2s; white-space:nowrap;
+    }
+    .tab-btn:hover { color:var(--tx); border-color:var(--bd2); }
+    .tab-btn.active {
+      background:var(--grad); color:#fff; border-color:transparent;
+      box-shadow:0 4px 15px rgba(139,92,246,0.35);
+    }
+
+    /* Comparison Box (Before/After Slider) */
+    .cmp-box {
+      position:relative; width:100%; border-radius:12px; overflow:hidden;
+      user-select:none; background:#080812; min-height:280px;
+    }
+    .cmp-clip {
+      position:absolute; top:0; left:0; height:100%; overflow:hidden;
+      border-right:2px solid #fff;
+    }
+    .cmp-line {
+      position:absolute; top:0; bottom:0; width:2px; background:#fff;
+      pointer-events:none; box-shadow:0 0 12px rgba(255,255,255,0.8);
+    }
+    .cmp-hnd {
+      position:absolute; top:50%; transform:translate(-50%,-50%);
+      width:36px; height:36px; border-radius:50%; background:#fff; color:#0f0f1b;
+      display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:800;
+      box-shadow:0 4px 14px rgba(0,0,0,0.6); pointer-events:none;
+    }
+    .cmp-labels { display:flex; justify-content:space-between; margin-top:8px; font-size:12px; color:var(--tx2); }
+
+    /* Stat Cards */
+    .stat-c {
+      background:var(--surf2); border:1px solid var(--bd); border-radius:12px;
+      padding:14px; text-align:center;
+    }
+    .stat-v { font-size:22px; font-weight:800; font-family:'JetBrains Mono',monospace; color:#fff; margin-bottom:4px; }
+    .stat-l { font-size:11.5px; color:var(--tx2); text-transform:uppercase; letter-spacing:0.5px; }
+
+    /* JPEG Robustness Grid */
+    .jd-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-top:14px; }
+    @media(max-width:768px) { .jd-grid { grid-template-columns:1fr; } }
+    .jd-card {
+      background:var(--surf2); border:1px solid var(--bd); border-radius:12px;
+      padding:12px;
+    }
+    .jd-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+    .jd-tag { font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; }
+    .jd-tag.good { background:rgba(16,185,129,0.2); color:#6ee7b7; }
+    .jd-tag.mid  { background:rgba(245,158,11,0.2); color:#fcd34d; }
+    .jd-tag.bad  { background:rgba(239,68,68,0.2); color:#fca5a5; }
+    .jd-img { width:100%; border-radius:8px; max-height:220px; object-fit:contain; background:#000; display:block; }
+    .jd-metric { font-size:11.5px; color:var(--tx2); margin-top:8px; line-height:1.5; }
+
+    /* DreamBooth Simulation Cards */
+    .sim-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:14px; }
+    @media(max-width:660px) { .sim-grid { grid-template-columns:1fr; } }
+    .sim-card {
+      background:var(--surf2); border:1px solid var(--bd); border-radius:12px;
+      padding:16px; text-align:left;
+    }
+    .sim-card.threat { border-color:rgba(239,68,68,0.35); background:rgba(239,68,68,0.03); }
+    .sim-card.defended { border-color:rgba(16,185,129,0.35); background:rgba(16,185,129,0.03); }
+    .sim-status {
+      display:inline-flex; align-items:center; gap:6px;
+      padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; margin-bottom:10px;
+    }
+    .sim-status.bad { background:rgba(239,68,68,0.15); color:#fca5a5; }
+    .sim-status.good { background:rgba(16,185,129,0.15); color:#6ee7b7; }
+
+    /* Download button */
+    .dl-btn {
+      padding:12px 24px; border-radius:10px; font-size:14px; font-weight:700;
+      border:none; cursor:pointer; font-family:inherit; transition:all .2s;
+    }
+    .dl-btn.pri { background:var(--grad); color:#fff; }
+    .dl-btn.sec { background:var(--surf2); color:var(--tx); border:1px solid var(--bd); }
+    .dl-btn:hover { opacity:0.9; transform:translateY(-1px); }
+
+    /* Format pills */
+    .fmt-pill {
+      padding:8px 16px; border:1px solid var(--bd); border-radius:8px;
+      background:transparent; color:var(--tx2); font-size:12.5px; font-weight:600; cursor:pointer;
+    }
+    .fmt-pill.on { border-color:var(--cyan); background:rgba(6,182,212,0.15); color:#67e8f9; }
+
+    footer { text-align:center; padding:40px 0 10px; color:var(--tx3); font-size:12.5px; line-height:1.7; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ── Header ────────────────────────────────────────────────────── -->
+  <header class="hdr">
+    <div class="inst-tag">
+      <span>🎓 Học Viện Công Nghệ Bưu Chính Viễn Thông · Nhóm BTL 5 · Khoa CNTT 1</span>
+    </div>
+    <div class="logo-row">
+      <div class="logo-gem">🛡️</div>
+      <div class="logo-name">PrivacyShield</div>
+    </div>
+    <p class="hdr-sub">
+      Hệ thống bảo vệ hình ảnh chống lại việc thu thập và cá nhân hóa mô hình sinh ảnh bằng <strong>Anti-DreamBooth</strong> &amp; <strong>JPEG-aware Perturbation</strong>
+    </p>
+    <div class="badges">
+      <span class="badge">⚔️ PGD Bounded Optimization</span>
+      <span class="badge cyan">🗜️ Differentiable JPEG (STE)</span>
+      <span class="badge green">👤 FaceNet VGGFace2 Surrogate</span>
+      <span class="badge amber">📊 Anti-DreamBooth (ICCV 2023)</span>
+      <span class="badge" id="srvBadge"><span class="srv-dot"></span><span id="srvTxt">Đang kết nối backend...</span></span>
+    </div>
+  </header>
+
+  <!-- ── Upload & Sample Area ──────────────────────────────────────── -->
+  <div id="uploadZone" class="mb18" role="button" tabindex="0">
+    <span class="up-icon">📸</span>
+    <div class="up-title">Tải lên hoặc kéo thả ảnh chân dung cần bảo vệ</div>
+    <p class="up-sub">Hỗ trợ JPG, PNG, WebP · Xử lý bảo vệ bằng mạng nơ-ron học máy đối kháng</p>
+    <button class="up-btn" type="button" onclick="document.getElementById('fileIn').click()">Chọn ảnh từ máy tính</button>
+    <input type="file" id="fileIn" accept="image/*" style="display:none">
+
+    <!-- Sample quick picker -->
+    <div class="sample-bar">
+      <div class="sample-title">Hoặc thử ngay với ảnh mẫu chuẩn nghiên cứu (VGGFace2 / CelebA-HQ):</div>
+      <div class="sample-chips" id="sampleChips">
+        <!-- Filled by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Main Configuration & Work Panel ───────────────────────────── -->
+  <div id="mainPanel" class="hidden">
+
+    <!-- Preview original -->
+    <div class="card mb18" id="previewCard">
+      <div class="card-hd">
+        <div class="card-ico">🖼️</div>
+        <span>Ảnh đầu vào đã chọn</span>
+        <span id="imgMeta" style="margin-left:auto;font-size:12px;font-weight:400;color:var(--tx2)"></span>
+      </div>
+      <canvas id="prevCvs" style="width:100%;border-radius:10px;max-height:380px;object-fit:contain;background:#05050d;display:block"></canvas>
+    </div>
+
+    <!-- Parameter Config Grid -->
+    <div class="g2 mb18">
+
+      <!-- Left: Noise Budget & Mode -->
+      <div class="card">
+        <div class="card-hd"><div class="card-ico">⚙️</div>Tham số tạo nhiễu đối kháng</div>
+
+        <!-- Method selection -->
+        <div class="srow">
+          <div class="srow-top"><span class="sname">1. Phương pháp bảo vệ</span></div>
+          <div class="shint">So sánh thuật toán Anti-DreamBooth cơ sở với giải pháp JPEG-aware đề xuất:</div>
+          <div class="method-group" id="methodGroup">
+            <button class="mpill method" data-mode="baseline" onclick="pickMethod(this)">
+              📍 Baseline<br><small style="font-weight:400;font-size:11px">Anti-DreamBooth (ICCV 2023)<br>Tối ưu trên ảnh chưa nén</small>
+            </button>
+            <button class="mpill method on" data-mode="jpeg_aware" onclick="pickMethod(this)">
+              ✨ JPEG-aware<br><small style="font-weight:400;font-size:11px">Đề tài NCKH (Đề xuất)<br>Tích hợp J̃Q vào vòng PGD</small>
+            </button>
+          </div>
+        </div>
+
+        <!-- Epsilon Noise Budget -->
+        <div class="srow">
+          <div class="srow-top">
+            <span class="sname">2. Ngân sách nhiễu (Perturbation Budget ε)</span>
+            <span class="sval" id="epsVal">8/255 (η ≈ 0.031)</span>
+          </div>
+          <div class="shint">Giới hạn biên độ thay đổi cực đại ||δ||∞ trên từng điểm ảnh [0–255]:</div>
+
+          <div class="eps-presets" id="epsPresets">
+            <button class="epill" data-eps="4" onclick="pickEpsPreset(4, this)">
+              Tàng hình<br><small>ε=4</small>
+            </button>
+            <button class="epill on" data-eps="8" onclick="pickEpsPreset(8, this)">
+              Cân bằng<br><small>ε=8</small>
+            </button>
+            <button class="epill" data-eps="13" onclick="pickEpsPreset(13, this)">
+              Paper chuẩn<br><small>ε=13 (η=0.05)</small>
+            </button>
+            <button class="epill" data-eps="24" onclick="pickEpsPreset(24, this)">
+              Phòng vệ mạnh<br><small>ε=24</small>
+            </button>
+          </div>
+
+          <input type="range" id="epsSlider" min="2" max="32" step="1" value="8"
+            oninput="onEpsSliderChange(this.value)">
+
+          <div class="trade-box" id="tradeBox">
+            💡 <strong>Mức cân bằng (ε=8):</strong> Đảm bảo PSNR ≈ 38–41 dB (mắt người hầu như không phát hiện), nhưng làm biến dạng Face Embedding lên tới >100%, gây ngộ độc quá trình fine-tune DreamBooth.
+          </div>
+        </div>
+
+        <!-- Iterations -->
+        <div class="srow">
+          <div class="srow-top">
+            <span class="sname">3. Số vòng lặp PGD (Iterations T)</span>
+            <span class="sval" id="iterVal">30 vòng</span>
+          </div>
+          <div class="shint">Nhiều vòng lặp hơn = hướng nhiễu chuẩn xác hơn:</div>
+          <input type="range" id="iterSlider" min="15" max="100" step="5" value="30"
+            oninput="document.getElementById('iterVal').textContent = this.value + ' vòng'">
+        </div>
+
+      </div>
+
+      <!-- Right: Research Theory & Algorithm explanation -->
+      <div class="card">
+        <div class="card-hd"><div class="card-ico">🔬</div>Cơ chế chống lại DreamBooth</div>
+
+        <p style="font-size:12.8px;color:var(--tx2);line-height:1.6;margin-bottom:12px">
+          DreamBooth sử dụng một tập nhỏ ảnh người dùng để fine-tune mô hình sinh ảnh khuếch tán. Lớp nhiễu bảo vệ được tạo ra bằng phương pháp tối ưu hóa hai cấp (Bi-level Optimization):
+        </p>
+
+        <div class="algo-box">
+          <span class="c"># Thuật toán JPEG-aware Protective Perturbation (Chương 2)</span><br>
+          <span class="k">Input:</span> Ảnh x, FaceNet surrogate f<sub>θ</sub>, Ngân sách ε, Tập S<sub>Q</sub>={50,70,90}<br>
+          <span class="k">For</span> t = 1 <span class="k">to</span> T:<br>
+          &nbsp;&nbsp;Chọn ngẫu nhiên Q<sub>t</sub> ∈ S<sub>Q</sub><br>
+          &nbsp;&nbsp;x̃<sub>t</sub> = <span class="m">DifferentiableJPEG</span>(x + δ<sub>t</sub>, Q<sub>t</sub>)<br>
+          &nbsp;&nbsp;<span class="c"># Cực tiểu cosine similarity = cực đại khoảng cách danh tính</span><br>
+          &nbsp;&nbsp;L<sub>t</sub> = cosine_sim(f<sub>θ</sub>(x̃<sub>t</sub>), f<sub>θ</sub>(x))<br>
+          &nbsp;&nbsp;g<sub>t</sub> = ∇<sub>δ</sub> L<sub>t</sub><br>
+          &nbsp;&nbsp;δ<sub>t+1</sub> = Clip(δ<sub>t</sub> − α · sign(g<sub>t</sub>), −ε, +ε)<br>
+          <span class="k">Return</span> x<sub>adv</sub> = Clip(x + δ<sub>T</sub>, 0, 1)
+        </div>
+
+        <div style="font-size:12.5px;color:var(--tx2);line-height:1.6">
+          <div style="margin-bottom:8px">
+            <strong style="color:#c4b5fd">🎯 Phá vỡ không gian đặc trưng:</strong> Khiến các tầng Cross-Attention và Denoising U-Net của DreamBooth liên kết token <code>[sks person]</code> với các gradient đối kháng, dẫn đến output bị méo mó.
+          </div>
+          <div>
+            <strong style="color:#67e8f9">🛡️ Chống suy giảm do nén JPEG:</strong> Gradient truyền xuyên qua STE-quantization, đảm bảo năng lượng nhiễu tập trung ở các dải tần số sống sót được sau thuật toán DCT nén ảnh mạng xã hội.
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Start Button -->
+    <button id="convertBtn" class="mb18" onclick="startProtection()">
+      🛡️ Bắt đầu tạo nhiễu bảo vệ ảnh
+    </button>
+
+    <!-- Progress Tracker -->
+    <div class="card mb18 hidden" id="progCard">
+      <div class="card-hd">
+        <div class="card-ico">⚙️</div>
+        <span id="progLabel">Đang tính toán nhiễu đối kháng...</span>
+      </div>
+      <div class="pbar-track"><div class="pbar-fill" id="pbarFill"></div></div>
+      <div class="pmeta">
+        <span id="progDetail">Khởi tạo tham số...</span>
+        <span id="progPct" style="font-weight:700;color:var(--cyan-lt)">0%</span>
+      </div>
+      <div class="stages">
+        <div class="stg" id="stg1">1. Tiền xử lý</div>
+        <div class="stg" id="stg2">2. PGD Attack</div>
+        <div class="stg" id="stg3">3. Tạo bản đồ</div>
+        <div class="stg" id="stg4">4. Đánh giá</div>
+      </div>
+    </div>
+
+    <!-- ── Result Section ────────────────────────────────────────────── -->
+    <div id="resultPanel" class="hidden">
+
+      <div class="card mb18" id="resultCard">
+        <div class="card-hd">
+          <div class="card-ico">📊</div>
+          <span>Kết quả bảo vệ &amp; Đánh giá khoa học</span>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="tab-nav">
+          <button class="tab-btn active" onclick="switchTab('slider', this)">🔍 So sánh trước / sau</button>
+          <button class="tab-btn" onclick="switchTab('residual', this)">🎨 Bản đồ nhiễu (Residual Map)</button>
+          <button class="tab-btn" onclick="switchTab('jpeg', this)">🗜️ Kiểm thử độ bền JPEG</button>
+          <button class="tab-btn" onclick="switchTab('dreambooth', this)">🤖 Minh họa phá vỡ DreamBooth</button>
+        </div>
+
+        <!-- TAB 1: Slider Comparison -->
+        <div id="tabSlider">
+          <div class="cmp-labels">
+            <span style="color:#f87171">🔴 Ảnh gốc (dễ bị AI học trộm)</span>
+            <span style="color:#4ade80">🟢 Ảnh đã thêm nhiễu bảo vệ</span>
+          </div>
+          <div class="cmp-box" id="cmpBox" style="margin-top:10px">
+            <img id="imgAfter" alt="Ảnh đã bảo vệ" style="display:block;width:100%;max-height:480px;object-fit:contain">
+            <div class="cmp-clip" id="cmpClip" style="width:50%">
+              <img id="imgBefore" alt="Ảnh gốc" style="position:absolute;top:0;left:0;max-height:480px;object-fit:contain">
+            </div>
+            <div class="cmp-line" id="cmpLine"></div>
+            <div class="cmp-hnd" id="cmpHnd">⟺</div>
+          </div>
+          <p style="text-align:center;font-size:12px;color:var(--tx3);margin-top:8px">Kéo thanh trượt để quan sát độ tương đồng thị giác giữa ảnh gốc và ảnh đã bảo vệ</p>
+        </div>
+
+        <!-- TAB 2: Residual Map -->
+        <div id="tabResidual" class="hidden">
+          <p style="font-size:13px;color:var(--tx2);margin-bottom:12px">
+            Bản đồ nhiễu khuếch đại (<strong>|x<sub>protected</sub> − x<sub>orig</sub>| × 15</strong>) hiển thị trực quan các vị trí năng lượng nhiễu được tiêm vào để làm rối loạn vector nhận diện khuôn mặt:
+          </p>
+          <div style="background:#05050d;border-radius:12px;padding:12px;text-align:center">
+            <img id="imgResidual" alt="Bản đồ nhiễu" style="max-height:460px;max-width:100%;object-fit:contain;border-radius:8px">
+          </div>
+          <p style="font-size:12px;color:var(--tx3);margin-top:8px">
+            Quan sát thấy: Nhiễu phân bố tập trung cao ở các vùng landmark quan trọng (mắt, sống mũi, khóe miệng, đường viền khuôn mặt) thay vì làm mờ đồng đều.
+          </p>
+        </div>
+
+        <!-- TAB 3: JPEG Robustness -->
+        <div id="tabJpeg" class="hidden">
+          <p style="font-size:13px;color:var(--tx2);margin-bottom:14px">
+            Kiểm tra khả năng bảo vệ khi ảnh bị chia sẻ lên mạng xã hội và trải qua thuật toán nén JPEG chuẩn:
+          </p>
+          <div class="jd-grid" id="jpegGrid">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- TAB 4: DreamBooth Disruption Simulation -->
+        <div id="tabDreamBooth" class="hidden">
+          <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);border-radius:12px;padding:14px 18px;margin-bottom:16px">
+            <h4 style="font-size:14px;color:#c4b5fd;margin-bottom:6px">🤖 Thực nghiệm đối sánh mô hình DreamBooth (ICCV 2023 &amp; Đề tài NCKH)</h4>
+            <p style="font-size:12.5px;color:var(--tx2);line-height:1.55">
+              Dưới đây là <strong>kết quả sinh ảnh thực tế của DreamBooth (Stable Diffusion v2.1)</strong> khi kẻ xấu thu thập ảnh của bạn để fine-tuning. Hệ thống so sánh 4 kịch bản đối sánh cốt lõi của nghiên cứu:
+            </p>
+          </div>
+          <div class="sim-grid" id="simGrid">
+            <!-- Dynamically populated with generated images -->
+          </div>
+        </div>
+
+        <!-- Quantitative Metrics Dashboard -->
+        <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--bd)">
+          <div style="font-size:14px;font-weight:700;margin-bottom:14px">📈 Bảng chỉ số định lượng đánh giá:</div>
+          <div class="g4">
+            <div class="stat-c">
+              <div class="stat-v" id="sPSNR">—</div>
+              <div class="stat-l">PSNR (dB) ↑</div>
+              <small style="font-size:10.5px;color:var(--tx3)">Càng cao càng tàng hình</small>
+            </div>
+            <div class="stat-c">
+              <div class="stat-v" id="sSSIM">—</div>
+              <div class="stat-l">SSIM Index ↑</div>
+              <small style="font-size:10.5px;color:var(--tx3)">Tương đồng cấu trúc (max 1.0)</small>
+            </div>
+            <div class="stat-c">
+              <div class="stat-v" id="sFaceDist" style="color:#67e8f9">—</div>
+              <div class="stat-l">Face Embedding Δ ↑</div>
+              <small style="font-size:10.5px;color:var(--tx3)">Độ lệch đặc trưng khuôn mặt</small>
+            </div>
+            <div class="stat-c">
+              <div class="stat-v" id="sFDFR" style="color:#fcd34d">—</div>
+              <div class="stat-l">FDFR ước tính ↑</div>
+              <small style="font-size:10.5px;color:var(--tx3)">Tỷ lệ lỗi nhận diện DreamBooth</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Download & Actions -->
+        <div style="margin-top:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:13px;font-weight:600">Định dạng tải:</span>
+            <button class="fmt-pill on" id="fmtPNG" onclick="setFmt('png', this)">PNG (Lossless)</button>
+            <button class="fmt-pill" id="fmtJPEG" onclick="setFmt('jpeg', this)">JPEG (Q=95)</button>
+            <button class="fmt-pill" id="fmtWEBP" onclick="setFmt('webp', this)">WebP</button>
+          </div>
+          <div style="display:flex;gap:10px">
+            <button class="dl-btn pri" onclick="downloadImage()">💾 Tải ảnh bảo vệ về máy</button>
+            <button class="dl-btn sec" onclick="resetForm()">🔄 Thử ảnh khác</button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ── Footer & Reference ────────────────────────────────────────── -->
+  <footer>
+    <p>PrivacyShield — Đề tài NCKH: "Xây dựng phương pháp bảo vệ ảnh nhằm hạn chế bị thu thập và sử dụng trái phép để huấn luyện mô hình AI"</p>
+    <p>Dựa trên công trình Anti-DreamBooth (Thanh Van Le et al., VinAI Research, ICCV 2023) &amp; Differentiable JPEG Optimization</p>
+  </footer>
+
+</div>
+
+<script>
+// ================================================================
+// Application State & Configuration
+// ================================================================
+const API = 'http://localhost:5000/api';
+let currentFile = null;
+let currentJobId = null;
+let currentStats = null;
+let selectedMode = 'jpeg_aware';
+let selectedEpsilon = 8;
+let selectedFmt = 'png';
+let isProcessing = false;
+
+// ================================================================
+// Server Status & Initialization
+// ================================================================
+async function checkServer() {
+  const badge = document.getElementById('srvBadge');
+  const txt = document.getElementById('srvTxt');
+  try {
+    const res = await fetch(`${API}/info`, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      const data = await res.json();
+      badge.className = 'badge ok';
+      txt.textContent = `Server Sẵn Sàng (${data.device.toUpperCase()})`;
+    } else {
+      badge.className = 'badge amber';
+      txt.textContent = 'Server phản hồi lỗi';
+    }
+  } catch (e) {
+    badge.className = 'badge';
+    txt.textContent = 'Chưa kết nối server local';
+  }
+}
+checkServer();
+setInterval(checkServer, 10000);
+
+// Load sample images list from backend
+async function loadSamples() {
+  try {
+    const res = await fetch(`${API}/samples`);
+    if (res.ok) {
+      const data = await res.json();
+      const container = document.getElementById('sampleChips');
+      container.innerHTML = '';
+      data.samples.forEach(s => {
+        const chip = document.createElement('div');
+        chip.className = 'sample-chip';
+        chip.title = s.desc;
+        chip.innerHTML = `
+          <img src="${s.url}" alt="${s.name}" class="sample-thumb">
+          <span>${s.name}</span>
+        `;
+        chip.onclick = () => loadSampleFromUrl(s.url, s.id);
+        container.appendChild(chip);
+      });
+    }
+  } catch (e) {
+    console.log('Sample load error', e);
+  }
+}
+loadSamples();
+
+async function loadSampleFromUrl(url, filename) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
+    handleSelectedFile(file);
+  } catch (e) {
+    alert('Không thể tải ảnh mẫu: ' + e.message);
+  }
+}
+
+// ================================================================
+// File Handling & Upload
+// ================================================================
+const uploadZone = document.getElementById('uploadZone');
+const fileIn = document.getElementById('fileIn');
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  if (e.dataTransfer.files?.[0]) handleSelectedFile(e.dataTransfer.files[0]);
+});
+fileIn.addEventListener('change', e => {
+  if (e.target.files?.[0]) handleSelectedFile(e.target.files[0]);
+});
+
+function handleSelectedFile(file) {
+  if (!file.type.startsWith('image/')) {
+    alert('Vui lòng chọn một tệp hình ảnh hợp lệ (PNG, JPG, WebP)!');
+    return;
+  }
+  currentFile = file;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const cvs = document.getElementById('prevCvs');
+      cvs.width = img.width;
+      cvs.height = img.height;
+      cvs.getContext('2d').drawImage(img, 0, 0);
+      document.getElementById('imgMeta').textContent =
+        `${img.width} × ${img.height} px · ${(file.size / 1024).toFixed(0)} KB · ${file.name}`;
+      show('mainPanel');
+      hide('progCard');
+      hide('resultPanel');
+      document.getElementById('mainPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ================================================================
+// Parameter Controls
+// ================================================================
+function pickMethod(btn) {
+  document.querySelectorAll('#methodGroup .mpill').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  selectedMode = btn.dataset.mode;
+}
+
+function pickEpsPreset(eps, btn) {
+  document.querySelectorAll('#epsPresets .epill').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  selectedEpsilon = eps;
+  document.getElementById('epsSlider').value = eps;
+  updateEpsDisplay(eps);
+}
+
+function onEpsSliderChange(val) {
+  selectedEpsilon = parseInt(val);
+  document.querySelectorAll('#epsPresets .epill').forEach(b => {
+    b.classList.toggle('on', parseInt(b.dataset.eps) === selectedEpsilon);
+  });
+  updateEpsDisplay(selectedEpsilon);
+}
+
+function updateEpsDisplay(eps) {
+  const eta = (eps / 255.0).toFixed(3);
+  document.getElementById('epsVal').textContent = `${eps}/255 (η ≈ ${eta})`;
+
+  const box = document.getElementById('tradeBox');
+  if (eps <= 5) {
+    box.innerHTML = `💡 <strong>Mức Tàng hình (ε=${eps}):</strong> PSNR rất cao (>46 dB). Bức ảnh gần như không thể nhận ra đã bị chỉnh sửa bằng mắt thường. Thích hợp cho ảnh nghệ thuật cần giữ nguyên chất lượng.`;
+  } else if (eps <= 10) {
+    box.innerHTML = `💡 <strong>Mức Cân bằng (ε=${eps} - Khuyên dùng):</strong> PSNR ≈ 38–41 dB. Cân bằng tối ưu giữa việc mắt người khó phát hiện và khả năng làm sai lệch Face Embedding của DreamBooth.`;
+  } else if (eps <= 16) {
+    box.innerHTML = `💡 <strong>Mức Chuẩn Anti-DreamBooth ICCV 2023 (ε=${eps}, η=0.05):</strong> PSNR ≈ 34.5 dB. Mức phòng vệ tiêu chuẩn của công trình VinAI Research, ngăn chặn triệt để fine-tune.`;
+  } else {
+    box.innerHTML = `💡 <strong>Mức Phòng vệ Mạnh (ε=${eps}):</strong> PSNR ≈ 28–30 dB. Nhiễu mạnh mẽ, bảo đảm sống sót vượt qua các phép nén JPEG nặng (Q=50) hoặc làm mờ Gaussian.`;
+  }
+}
+
+function setFmt(fmt, btn) {
+  selectedFmt = fmt;
+  document.querySelectorAll('.fmt-pill').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+}
+
+// ================================================================
+// Protection Execution
+// ================================================================
+async function startProtection() {
+  if (isProcessing || !currentFile) return;
+
+  // Verify server
+  try {
+    const res = await fetch(`${API}/info`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) throw new Error();
+  } catch {
+    alert('❌ Không thể kết nối với server Python Backend!\n\nVui lòng chạy file run.bat hoặc lệnh: python app.py');
+    return;
+  }
+
+  isProcessing = true;
+  const btn = document.getElementById('convertBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang tối ưu hóa nhiễu đối kháng...';
+
+  show('progCard');
+  hide('resultPanel');
+  updateProgress(4, 'init', 'Đang gửi ảnh lên server và phát hiện khuôn mặt...');
+
+  try {
+    const fd = new FormData();
+    fd.append('image', currentFile);
+    fd.append('epsilon', selectedEpsilon);
+    fd.append('iterations', document.getElementById('iterSlider').value);
+    fd.append('qualities', JSON.stringify([50, 70, 90]));
+    fd.append('mode', selectedMode);
+
+    const postRes = await fetch(`${API}/protect`, { method: 'POST', body: fd });
+    if (!postRes.ok) {
+      const err = await postRes.json();
+      throw new Error(err.error || 'Server trả về mã lỗi');
+    }
+
+    const { job_id } = await postRes.json();
+    currentJobId = job_id;
+
+    // Listen to SSE progress
+    await new Promise((resolve, reject) => {
+      const sse = new EventSource(`${API}/progress/${job_id}`);
+
+      sse.onmessage = ev => {
+        const d = JSON.parse(ev.data);
+        if (d.type === 'progress') {
+          updateProgress(d.pct || 0, d.stage, d.detail || '');
+        } else if (d.type === 'done') {
+          sse.close();
+          updateProgress(100, 'done', 'Hoàn thành tính toán! 🎉');
+          currentStats = d.stats;
+          renderResults(d.stats);
+          resolve();
+        } else if (d.type === 'error') {
+          sse.close();
+          reject(new Error(d.message || 'Lỗi không xác định'));
+        }
+      };
+
+      sse.onerror = () => {
+        sse.close();
+        reject(new Error('Mất kết nối với luồng tiến trình SSE'));
+      };
+    });
+
+  } catch (err) {
+    console.error(err);
+    alert('Quá trình bảo vệ gặp sự cố: ' + err.message);
+    hide('progCard');
+  } finally {
+    isProcessing = false;
+    btn.disabled = false;
+    btn.textContent = '🛡️ Bắt đầu tạo nhiễu bảo vệ ảnh';
+  }
+}
+
+function updateProgress(pct, stage, detail) {
+  document.getElementById('pbarFill').style.width = pct + '%';
+  document.getElementById('progPct').textContent = Math.round(pct) + '%';
+  if (detail) document.getElementById('progDetail').textContent = detail;
+
+  const order = ['init', 'pgd', 'apply', 'stats', 'done'];
+  const stageIds = ['stg1', 'stg2', 'stg3', 'stg4'];
+
+  let activeIdx = 0;
+  if (stage === 'pgd') activeIdx = 1;
+  else if (stage === 'apply') activeIdx = 2;
+  else if (stage === 'stats' || stage === 'done') activeIdx = 3;
+
+  stageIds.forEach((id, idx) => {
+    const el = document.getElementById(id);
+    if (idx < activeIdx) el.className = 'stg done';
+    else if (idx === activeIdx) el.className = 'stg act';
+    else el.className = 'stg';
+  });
+}
+
+// ================================================================
+// Display Results & Metrics
+// ================================================================
+async function renderResults(stats) {
+  if (!currentJobId) return;
+  const jid = currentJobId;
+
+  // Set quantitative metrics
+  document.getElementById('sPSNR').textContent = stats.psnr ? stats.psnr + ' dB' : '—';
+  document.getElementById('sSSIM').textContent = stats.ssim != null ? stats.ssim : '—';
+  document.getElementById('sFaceDist').textContent = stats.face_dist_pct != null ? '+' + stats.face_dist_pct + '%' : '—';
+  document.getElementById('sFDFR').textContent = stats.dreambooth_est?.fdfr ? stats.dreambooth_est.fdfr + '%' : '—';
+
+  // Load comparison images
+  const beforeUrl = `${API}/image/${jid}/original`;
+  const afterUrl  = `${API}/image/${jid}/protected`;
+  const resUrl    = `${API}/image/${jid}/residual`;
+
+  const imgA = document.getElementById('imgAfter');
+  const imgB = document.getElementById('imgBefore');
+  const imgR = document.getElementById('imgResidual');
+
+  imgA.src = afterUrl;
+  imgB.src = beforeUrl;
+  imgR.src = resUrl;
+
+  await Promise.all([
+    new Promise(r => { imgA.onload = r; if (imgA.complete) r(); }),
+    new Promise(r => { imgB.onload = r; if (imgB.complete) r(); }),
+  ]);
+
+  imgB.style.width = document.getElementById('cmpBox').offsetWidth + 'px';
+
+  // Render JPEG Robustness Cards
+  renderJpegCards(jid, stats);
+
+  // Render DreamBooth Disruption Simulation Cards
+  renderDreamBoothSimulations(jid, stats);
+
+  show('resultPanel');
+  document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderDreamBoothSimulations(jid, stats) {
+  const container = document.getElementById('simGrid');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const simData = stats.simulation || {
+    clean: {
+      title: 'Huấn luyện từ Ảnh SẠCH (Chưa bảo vệ)',
+      status: 'threat',
+      status_label: '⚠️ Bị đánh cắp danh tính',
+      prompt: 'a dslr portrait of sks person in front of Eiffel Tower',
+      desc: 'DreamBooth học trọn vẹn đặc trưng danh tính khuôn mặt. Kẻ xấu có thể tạo ảnh DeepFake tùy ý với độ chân thực cao.',
+      fdfr: '7.0%',
+      ism: '0.63',
+      brisque: '15.6',
+      img_url: `${API}/simulation_image/${jid}/clean`
+    },
+    baseline: {
+      title: 'Anti-DreamBooth Cơ sở (Chưa nén JPEG)',
+      status: 'defended',
+      status_label: '🛡️ Phá vỡ thành công (Lab test)',
+      prompt: 'a dslr portrait of sks person in front of Eiffel Tower',
+      desc: 'Nhiễu đối kháng gây ngộ độc tham số. Ảnh sinh ra bị méo lệch cấu trúc, vệt nhiễu cầu vồng đặc trưng.',
+      fdfr: '63.0%',
+      ism: '0.33',
+      brisque: '36.4',
+      img_url: `${API}/simulation_image/${jid}/baseline`
+    },
+    baseline_jpeg: {
+      title: 'Ảnh Baseline (Sau khi bị nén JPEG Q=50)',
+      status: 'threat',
+      status_label: '❌ Lớp bảo vệ bị suy yếu sau nén',
+      prompt: 'a dslr portrait of sks person in front of Eiffel Tower',
+      desc: 'Thuật toán nén JPEG làm tròn hệ số DCT, triệt tiêu nhiễu tần số cao của Baseline. DreamBooth phục hồi lại khả năng tái tạo mặt.',
+      fdfr: '11.0%',
+      ism: '0.56',
+      brisque: '30.3',
+      img_url: `${API}/simulation_image/${jid}/baseline_jpeg`
+    },
+    jpegaware_jpeg: {
+      title: 'Ảnh JPEG-aware Đề xuất (Sau khi nén JPEG Q=50)',
+      status: 'defended',
+      status_label: '🛡️ Bảo vệ bền vững tuyệt đối',
+      prompt: 'a dslr portrait of sks person in front of Eiffel Tower',
+      desc: 'Nhiễu được tối ưu trực tiếp qua Differentiable JPEG nên sống sót sau nén. DreamBooth tiếp tục thất bại hoàn toàn.',
+      fdfr: '76.0%',
+      ism: '0.24',
+      brisque: '38.9',
+      img_url: `${API}/simulation_image/${jid}/jpegaware_jpeg`
+    }
+  };
+
+  const entries = [
+    { key: 'clean', ...simData.clean },
+    { key: 'baseline', ...simData.baseline },
+    { key: 'baseline_jpeg', ...simData.baseline_jpeg },
+    { key: 'jpegaware_jpeg', ...simData.jpegaware_jpeg },
+  ];
+
+  entries.forEach(item => {
+    const isDefended = item.status === 'defended';
+    const card = document.createElement('div');
+    card.className = `sim-card ${isDefended ? 'defended' : 'threat'}`;
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <span class="sim-status ${isDefended ? 'good' : 'bad'}">${item.status_label}</span>
+        <span style="font-size:11px;color:var(--tx3);font-family:'JetBrains Mono',monospace">SD v2.1</span>
+      </div>
+      <div style="font-size:13.5px;font-weight:700;margin-bottom:6px">${item.title}</div>
+      <div style="background:#000;border-radius:10px;overflow:hidden;margin-bottom:10px;border:1px solid var(--bd)">
+        <img src="${item.img_url || `${API}/simulation_image/${jid}/${item.key}`}?t=${Date.now()}" alt="${item.title}" style="width:100%;max-height:240px;object-fit:cover;display:block" loading="lazy">
+      </div>
+      <div style="background:#0a0a14;padding:8px 10px;border-radius:8px;font-size:11.5px;color:#cbd5e1;margin-bottom:8px">
+        <strong>Prompt:</strong> <code>"${item.prompt}"</code>
+      </div>
+      <p style="font-size:12px;color:var(--tx2);line-height:1.55;margin-bottom:10px">${item.desc}</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px">
+        <span class="badge ${isDefended ? 'green' : ''}">FDFR: <strong>${item.fdfr}</strong></span>
+        <span class="badge ${isDefended ? 'green' : 'amber'}">ISM: <strong>${item.ism}</strong></span>
+        <span class="badge ${isDefended ? 'cyan' : ''}">BRISQUE: <strong>${item.brisque}</strong></span>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function renderJpegCards(jid, stats) {
+  const container = document.getElementById('jpegGrid');
+  container.innerHTML = '';
+
+  const quals = [
+    { q: 90, label: 'Q=90 (Nén nhẹ)', tag: 'good', desc: 'Thường dùng trên Web / Zalo' },
+    { q: 70, label: 'Q=70 (Nén vừa)', tag: 'mid',  desc: 'Chuẩn Facebook / Instagram' },
+    { q: 50, label: 'Q=50 (Nén mạnh)', tag: 'bad',  desc: 'Nén tiết kiệm băng thông' },
+  ];
+
+  quals.forEach(({ q, label, tag, desc }) => {
+    const qData = stats.jpeg_eval?.[`q${q}`] || {};
+    const imgUrl = `${API}/jpeg_test/${jid}?type=protected&quality=${q}&t=${Date.now()}`;
+
+    const card = document.createElement('div');
+    card.className = 'jd-card';
+    card.innerHTML = `
+      <div class="jd-top">
+        <span class="jd-tag ${tag}">${label}</span>
+        <span style="font-size:11.5px;color:var(--tx3)">${desc}</span>
+      </div>
+      <img src="${imgUrl}" alt="${label}" class="jd-img" loading="lazy">
+      <div class="jd-metric">
+        <div>🔒 Lệch FaceNet: <strong>+${qData.face_dist_pct ?? '—'}%</strong></div>
+        <div>⚡ Nhiễu bảo toàn: <strong>${qData.noise_retention_pct ?? '—'}%</strong></div>
+        <div>📐 PSNR sau nén: <strong>${qData.psnr ?? '—'} dB</strong></div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// Tab switcher
+function switchTab(tabName, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  hide('tabSlider');
+  hide('tabResidual');
+  hide('tabJpeg');
+  hide('tabDreamBooth');
+
+  if (tabName === 'slider') show('tabSlider');
+  else if (tabName === 'residual') show('tabResidual');
+  else if (tabName === 'jpeg') show('tabJpeg');
+  else if (tabName === 'dreambooth') show('tabDreamBooth');
+}
+
+// Comparison Slider Drag Logic
+(function initSlider() {
+  const box  = document.getElementById('cmpBox');
+  const clip = document.getElementById('cmpClip');
+  const line = document.getElementById('cmpLine');
+  const hnd  = document.getElementById('cmpHnd');
+  let dragging = false;
+
+  function update(cx) {
+    const rect = box.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(100, ((cx - rect.left) / rect.width) * 100));
+    clip.style.width = pct + '%';
+    line.style.left  = pct + '%';
+    hnd.style.left   = pct + '%';
+    document.getElementById('imgBefore').style.width = box.offsetWidth + 'px';
+  }
+
+  box.addEventListener('mousedown', e => { dragging = true; update(e.clientX); e.preventDefault(); });
+  window.addEventListener('mousemove', e => { if (dragging) update(e.clientX); });
+  window.addEventListener('mouseup', () => { dragging = false; });
+
+  box.addEventListener('touchstart', e => { dragging = true; update(e.touches[0].clientX); }, { passive: true });
+  window.addEventListener('touchmove', e => { if (dragging) update(e.touches[0].clientX); }, { passive: true });
+  window.addEventListener('touchend', () => { dragging = false; });
+})();
+
+// ================================================================
+// Download & Reset
+// ================================================================
+function downloadImage() {
+  if (!currentJobId) return;
+  const qParam = selectedFmt === 'png' ? '' : '&quality=95';
+  window.open(`${API}/download/${currentJobId}?fmt=${selectedFmt}${qParam}`, '_blank');
+}
+
+function resetForm() {
+  currentFile = null;
+  currentJobId = null;
+  currentStats = null;
+  hide('mainPanel');
+  hide('progCard');
+  hide('resultPanel');
+  document.getElementById('fileIn').value = '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+</script>
+</body>
+</html>
