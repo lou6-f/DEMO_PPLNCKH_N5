@@ -662,7 +662,11 @@
 // ================================================================
 // Application State & Configuration
 // ================================================================
-const API = 'http://localhost:5000/api';
+// Tự động nhận diện domain: Dùng URL tương đối khi chạy trên Render/Cloud hoặc localhost,
+// chỉ fallback về localhost:5000 nếu mở bằng file://
+const API = (window.location.protocol === 'http:' || window.location.protocol === 'https:')
+  ? `${window.location.origin}/api`
+  : 'http://localhost:5000/api';
 let currentFile = null;
 let currentJobId = null;
 let currentStats = null;
@@ -678,7 +682,7 @@ async function checkServer() {
   const badge = document.getElementById('srvBadge');
   const txt = document.getElementById('srvTxt');
   try {
-    const res = await fetch(`${API}/info`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${API}/info`, { signal: AbortSignal.timeout(8000) });
     if (res.ok) {
       const data = await res.json();
       badge.className = 'badge ok';
@@ -689,7 +693,7 @@ async function checkServer() {
     }
   } catch (e) {
     badge.className = 'badge';
-    txt.textContent = 'Chưa kết nối server local';
+    txt.textContent = 'Đang kết nối backend...';
   }
 }
 checkServer();
@@ -830,10 +834,10 @@ async function startProtection() {
 
   // Verify server
   try {
-    const res = await fetch(`${API}/info`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${API}/info`, { signal: AbortSignal.timeout(10000) });
     if (!res.ok) throw new Error();
   } catch {
-    alert('❌ Không thể kết nối với server Python Backend!\n\nVui lòng chạy file run.bat hoặc lệnh: python app.py');
+    alert('❌ Chưa kết nối được với server Backend!\n\nNếu server vừa thức dậy từ chế độ ngủ (Spin-down), vui lòng đợi khoảng 15–30 giây rồi bấm thử lại.');
     return;
   }
 
