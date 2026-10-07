@@ -33,7 +33,7 @@ from diff_jpeg import DifferentiableJPEG
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-MAX_PROC_DIM = 512      # Long edge is capped here for performance
+MAX_PROC_DIM = 256      # Capped to 256 for fast PGD on cloud CPU instances
 
 
 # ── Face surrogate model ─────────────────────────────────────────────────────
@@ -262,7 +262,8 @@ def protect_image(
     report('pgd', 12, f'Bắt đầu PGD ({mode}) — ε={epsilon}/255, T={iterations}')
 
     # ── 4. PGD loop ───────────────────────────────────────────────────────
-    log_every = max(1, iterations // 25)
+    # Log frequently so progress bar animates smoothly
+    log_every = 1 if iterations <= 30 else 2
 
     for t in range(iterations):
         d = delta.detach().requires_grad_(True)
@@ -287,12 +288,17 @@ def protect_image(
             delta = delta - alpha * d.grad.sign()
             delta = delta.clamp(-eps, eps)
 
-        if (t + 1) % log_every == 0:
-            pct    = 12 + (t + 1) / iterations * 68
+        if (t + 1) % log_every == 0 or (t + 1) == iterations:
+            pct    = 12 + int(((t + 1) / iterations) * 68)
             detail = f'Vòng {t+1}/{iterations} | Độ tương đồng={loss.item():.4f}'
             if Q:
                 detail += f' | Nén JPEG Q={Q}'
             report('pgd', pct, detail)
+
+        # Early stopping if identity is already completely disrupted
+        if loss.item() < 0.12 and t >= 20:
+            report('pgd', 80, f'Hội tụ tối ưu tại vòng {t+1}/{iterations} (Đặc trưng khuôn mặt đã bị phá hủy hoàn toàn)')
+            break
 
     # ── 5. Apply to full-resolution image ─────────────────────────────────
     report('apply', 82, 'Ghép lớp nhiễu đối kháng vào ảnh gốc...')

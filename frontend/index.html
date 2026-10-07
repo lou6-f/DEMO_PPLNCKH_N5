@@ -467,10 +467,10 @@
         <div class="srow">
           <div class="srow-top">
             <span class="sname">3. Số vòng lặp PGD (Iterations T)</span>
-            <span class="sval" id="iterVal">30 vòng</span>
+            <span class="sval" id="iterVal">20 vòng</span>
           </div>
-          <div class="shint">Nhiều vòng lặp hơn = hướng nhiễu chuẩn xác hơn:</div>
-          <input type="range" id="iterSlider" min="15" max="100" step="5" value="30"
+          <div class="shint">Khuyên dùng 15–25 vòng (đủ phá vỡ FaceNet &amp; tối ưu tốc độ xử lý):</div>
+          <input type="range" id="iterSlider" min="10" max="60" step="5" value="20"
             oninput="document.getElementById('iterVal').textContent = this.value + ' vòng'">
         </div>
 
@@ -867,30 +867,73 @@ async function startProtection() {
     const { job_id } = await postRes.json();
     currentJobId = job_id;
 
-    // Listen to SSE progress
+    // Listen to SSE progress with automatic polling fallback
     await new Promise((resolve, reject) => {
-      const sse = new EventSource(`${API}/progress/${job_id}`);
+      let isDone = false;
+      let sse = null;
 
-      sse.onmessage = ev => {
-        const d = JSON.parse(ev.data);
-        if (d.type === 'progress') {
-          updateProgress(d.pct || 0, d.stage, d.detail || '');
-        } else if (d.type === 'done') {
-          sse.close();
-          updateProgress(100, 'done', 'Hoàn thành tính toán! 🎉');
-          currentStats = d.stats;
-          renderResults(d.stats);
-          resolve();
-        } else if (d.type === 'error') {
-          sse.close();
-          reject(new Error(d.message || 'Lỗi không xác định'));
-        }
-      };
+      function startPollingFallback() {
+        if (isDone) return;
+        const pollInterval = setInterval(async () => {
+          if (isDone) { clearInterval(pollInterval); return; }
+          try {
+            const r = await fetch(`${API}/result/${job_id}`);
+            if (r.status === 200) {
+              isDone = true;
+              clearInterval(pollInterval);
+              const data = await r.json();
+              updateProgress(100, 'done', 'Hoàn thành tính toán! 🎉');
+              currentStats = data.stats;
+              renderResults(data.stats);
+              resolve();
+            } else if (r.status === 202) {
+              const data = await r.json();
+              if (data.progress) {
+                updateProgress(data.progress.pct || 0, data.progress.stage, data.progress.detail || '');
+              }
+            } else if (r.status >= 400 && r.status !== 404) {
+              isDone = true;
+              clearInterval(pollInterval);
+              reject(new Error('Lỗi từ máy chủ xử lý'));
+            }
+          } catch (e) {
+            // tiếp tục thăm dò
+          }
+        }, 1500);
+      }
 
-      sse.onerror = () => {
-        sse.close();
-        reject(new Error('Mất kết nối với luồng tiến trình SSE'));
-      };
+      try {
+        sse = new EventSource(`${API}/progress/${job_id}`);
+
+        sse.onmessage = ev => {
+          if (!ev.data) return;
+          try {
+            const d = JSON.parse(ev.data);
+            if (d.type === 'progress') {
+              updateProgress(d.pct || 0, d.stage, d.detail || '');
+            } else if (d.type === 'done') {
+              isDone = true;
+              if (sse) sse.close();
+              updateProgress(100, 'done', 'Hoàn thành tính toán! 🎉');
+              currentStats = d.stats;
+              renderResults(d.stats);
+              resolve();
+            } else if (d.type === 'error') {
+              isDone = true;
+              if (sse) sse.close();
+              reject(new Error(d.message || 'Lỗi không xác định'));
+            }
+          } catch (pe) {}
+        };
+
+        sse.onerror = () => {
+          if (isDone) return;
+          if (sse) { sse.close(); sse = null; }
+          startPollingFallback();
+        };
+      } catch (err) {
+        startPollingFallback();
+      }
     });
 
   } catch (err) {

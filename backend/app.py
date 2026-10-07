@@ -263,20 +263,29 @@ def api_progress(job_id):
                 yield f"data: {json.dumps({'type':'error','message':error})}\n\n"
                 return
 
-            time.sleep(0.2)
+            if not new_ev:
+                yield ": keep-alive\n\n"
+
+            time.sleep(0.3)
 
     return Response(_gen_with_cursor(),
                     mimetype='text/event-stream',
-                    headers={'Cache-Control': 'no-cache',
-                             'X-Accel-Buffering': 'no'})
+                    headers={'Cache-Control': 'no-cache, no-transform',
+                             'X-Accel-Buffering': 'no',
+                             'Connection': 'keep-alive'})
 
 
 @app.route('/api/result/<job_id>')
 def api_result(job_id):
     with _LOCK:
         job = JOBS.get(job_id, {})
+    if not job:
+        return jsonify({'error': 'Job không tồn tại'}), 404
+    if job.get('status') == 'error':
+        return jsonify({'status': 'error', 'error': job.get('error')}), 500
     if job.get('status') != 'done':
-        return jsonify({'error': 'Kết quả chưa sẵn sàng'}), 404
+        last_ev = job.get('events', [])[-1] if job.get('events') else {}
+        return jsonify({'status': 'running', 'progress': last_ev}), 202
     return jsonify({'status': 'done', 'stats': job.get('stats', {})})
 
 
