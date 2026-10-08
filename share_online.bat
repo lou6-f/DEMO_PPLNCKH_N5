@@ -8,10 +8,12 @@ echo.
 
 cd /d "%~dp0"
 
-:: 1. Kiem tra file cloudflared.exe
 if not exist "cloudflared.exe" (
-    echo [1/2] Dang tai cong cu tao tunnel Cloudflare (cloudflared.exe ~30MB)...
-    powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile('https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe', 'cloudflared.exe')"
+    echo [1/2] Dang tai cong cu tao tunnel Cloudflare (cloudflared.exe ~50MB)...
+    curl.exe -L -o cloudflared.exe "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
+    if not exist "cloudflared.exe" (
+        powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile('https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe', 'cloudflared.exe')"
+    )
     if not exist "cloudflared.exe" (
         echo [ERROR] Khong the tu dong tai cloudflared.exe. Vui long kiem tra ket noi mang.
         pause
