@@ -275,8 +275,7 @@ def api_progress(job_id):
     return Response(_gen_with_cursor(),
                     mimetype='text/event-stream',
                     headers={'Cache-Control': 'no-cache, no-transform',
-                             'X-Accel-Buffering': 'no',
-                             'Connection': 'keep-alive'})
+                             'X-Accel-Buffering': 'no'})
 
 
 @app.route('/api/result/<job_id>')
