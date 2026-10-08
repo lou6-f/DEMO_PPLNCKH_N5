@@ -33,7 +33,7 @@ echo [2/2] Khoi dong may chu Backend...
 powershell -Command "try { $r = Invoke-WebRequest -Uri 'http://localhost:5000/api/info' -TimeoutSec 2; exit 0 } catch { exit 1 }"
 if %errorlevel% neq 0 (
     echo [THONG BAO] Dang bat Backend server trong cua so rieng...
-    start "PrivacyShield Backend" cmd /c "cd /d "%~dp0backend" && python app.py"
+    start "PrivacyShield Backend" cmd /k "cd /d "%~dp0backend" && python app.py"
     timeout /t 5 >nul
 ) else (
     echo [OK] Backend server da dang chay san sang!
