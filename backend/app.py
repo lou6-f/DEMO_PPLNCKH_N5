@@ -153,6 +153,15 @@ def _run_job(job_id: str, img_bytes: bytes, params: dict):
 
 # ── Routes ───────────────────────────────────────────────────────────────────
 
+@app.after_request
+def add_no_cache_headers(response):
+    if response.mimetype in ('text/html', 'text/css', 'application/javascript'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
+
 @app.route('/')
 def serve_index():
     return send_from_directory(FRONTEND_DIR, 'index.html')
@@ -174,25 +183,26 @@ def api_samples():
     if SAMPLES_DIR.exists():
         metadata = {
             'sample_female.jpg': {
-                'name': 'Chân dung nữ (CelebA-HQ)',
-                'desc': 'Góc nhìn chính diện, ánh sáng đều, độ phân giải cao'
+                'name': 'Chân dung nữ chính diện',
+                'desc': 'Góc nhìn chính diện, ánh sáng đều, rõ nét đặc trưng khuôn mặt'
             },
             'sample_male.jpg': {
-                'name': 'Chân dung nam (VGGFace2)',
-                'desc': 'Ánh sáng tự nhiên, góc chụp chuẩn đối kháng'
+                'name': 'Chân dung nam chính diện',
+                'desc': 'Ảnh chân dung chuẩn, đường nét khuôn mặt rõ ràng'
             },
             'sample_portrait.jpg': {
                 'name': 'Chân dung ngoại cảnh',
-                'desc': 'Bối cảnh ngoài trời, đặc trưng chi tiết phức tạp'
+                'desc': 'Bối cảnh ngoài trời, ánh sáng tự nhiên và chi tiết phức tạp'
             }
         }
-        for f in SAMPLES_DIR.glob('*.jpg'):
+        for f in sorted(SAMPLES_DIR.glob('*.jpg')):
             meta = metadata.get(f.name, {'name': f.stem, 'desc': 'Ảnh chân dung thử nghiệm'})
+            mtime = int(f.stat().st_mtime)
             sample_list.append({
                 'id': f.name,
                 'name': meta['name'],
                 'desc': meta['desc'],
-                'url': f'/samples/{f.name}'
+                'url': f'/samples/{f.name}?v={mtime}'
             })
     return jsonify({'samples': sample_list})
 
@@ -211,8 +221,8 @@ def api_protect():
         img_bytes = request.files['image'].read()
         f = request.form
         iter_req = int(f.get('iterations', 20))
-        # Cap iterations to 30 max on CPU to guarantee 10-15s execution time
-        safe_iters = max(10, min(iter_req, 30))
+        # Allow user-selected iterations from 1 to 100
+        safe_iters = max(1, min(iter_req, 100))
 
         params = {
             'epsilon'   : int(f.get('epsilon', 8)),

@@ -1,8 +1,8 @@
 @echo off
 setlocal
-title PrivacyShield Local Server
+title PicShield - Local Server
 echo ============================================================
-echo   PrivacyShield - Anti-DreamBooth and JPEG-aware
+echo   PicShield - Khien bao ve cho anh cua ban
 echo   De tai NCKH: Bao ve anh truoc mo hinh sinh DreamBooth
 echo ============================================================
 echo.
